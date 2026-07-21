@@ -1,7 +1,6 @@
 import { useState } from "react";
-import { auth } from "../firebase";
+import { auth, db } from "../firebase/config";
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from "firebase/auth";
-import { db } from "../firebase";
 import { doc, setDoc } from "firebase/firestore";
 
 function Auth() {
@@ -41,7 +40,7 @@ function Auth() {
             <input
             type="email"
             placeholder="Email"
-            calue={email}
+            value={email}
             onChange={(e) => setEmail(e.target.value)}
         />
 
