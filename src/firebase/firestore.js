@@ -65,7 +65,7 @@ export async function getItemById(id) {
 export async function updateItem(id, updateData) {
     const itemRef = doc(db, "items", id);
 
-    await updateDoc(itemRef, updatedData);
+    await updateDoc(itemRef, updateData);
 }
 
 export async function deleteItem(id) {
