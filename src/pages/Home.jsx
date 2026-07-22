@@ -3,10 +3,8 @@ import { Link } from 'react-router-dom';
 function TicketStep({ number, title, description }) {
   return (
     <div className="relative bg-white border border-[#E5E0D8] rounded-lg p-6 pt-8">
-      {/* Notch cutouts */}
       <div className="absolute top-1/2 -left-3 w-6 h-6 bg-[#FAF7F2] rounded-full border border-[#E5E0D8]" />
       <div className="absolute top-1/2 -right-3 w-6 h-6 bg-[#FAF7F2] rounded-full border border-[#E5E0D8]" />
-
       <p className="font-[Archivo_Black] text-4xl text-[#A6192E]/20 absolute top-4 right-6">
         {number}
       </p>
@@ -58,7 +56,6 @@ function Home() {
           </h2>
           <div className="w-16 h-1 bg-[#A6192E] mx-auto" />
         </div>
-
         <div className="grid md:grid-cols-3 gap-8">
           <TicketStep
             number="01"
@@ -80,5 +77,4 @@ function Home() {
     </div>
   );
 }
-
 export default Home;

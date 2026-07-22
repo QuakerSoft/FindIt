@@ -16,5 +16,4 @@ function PostItem() {
     </div>
   );
 }
-
 export default PostItem;

@@ -4,6 +4,8 @@ import {
     getDocs,
     getDoc,
     doc,
+    query,
+    where,
     updateDoc,
     deleteDoc,
     serverTimestamp,
@@ -44,6 +46,22 @@ export async function getAllItems() {
     }));
 
     return items;
+}
+
+export async function getItemsByType(type) {
+  if (type !== "lost" && type !== "found") {
+    throw new Error('Item type must be either "lost" or "found".');
+  }
+
+  const itemsRef = collection(db, "items");
+  const q = query(itemsRef, where("type", "==", type));
+  const querySnapshot = await getDocs(q);
+  const items = querySnapshot.docs.map((itemDoc) => ({
+        id: itemDoc.id,
+        ...itemDoc.data(),
+  }));
+
+  return items;
 }
 
 export async function getItemById(id) {
