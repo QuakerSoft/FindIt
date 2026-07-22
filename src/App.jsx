@@ -1,7 +1,23 @@
-import Auth from "./components/Auth";
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import Layout from './components/Layout';
+import Home from './pages/Home';
+import Browse from './pages/Browse';
+import PostItem from './pages/PostItem';
+import Auth from './components/Auth';
 
 function App() {
-  return <Auth />;
+  return (
+    <BrowserRouter>
+      <Layout>
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/browse" element={<Browse />} />
+          <Route path="/post" element={<PostItem />} />
+          <Route path="/login" element={<Auth />} />
+        </Routes>
+      </Layout>
+    </BrowserRouter>
+  );
 }
 
 export default App;
