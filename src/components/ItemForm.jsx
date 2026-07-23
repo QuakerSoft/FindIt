@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { auth } from "../firebase/config";
 import { createItem } from "../firebase/firestore";
+import { ITEM_CATEGORIES } from "../constants/categories";
 
 function ItemForm() {
   const [formData, setFormData] = useState({
@@ -130,21 +131,11 @@ function ItemForm() {
             required
           >
             <option value="">Select a category</option>
-            <option value="Backpack">Backpack</option>
-            <option value="Bag / Purse">Bag / Purse</option>
-            <option value="Clothing">Clothing</option>
-            <option value="Electronics">Electronics</option>
-            <option value="Chargers / Cables">Chargers / Cables</option>
-            <option value="Headphones">Headphones</option>
-            <option value="ID Card">ID Card</option>
-            <option value="Jewelry">Jewelry</option>
-            <option value="Keys">Keys</option>
-            <option value="Notebook">Notebook</option>
-            <option value="Phone">Phone</option>
-            <option value="Umbrella">Umbrella</option>
-            <option value="Wallet">Wallet</option>
-            <option value="Water Bottle">Water Bottle</option>
-            <option value="Other">Other</option>
+            {ITEM_CATEGORIES.map((category) => (
+              <option key={category} value={category}>
+                {category}
+              </option>
+            ))}
           </select>
         </label>
       </div>
