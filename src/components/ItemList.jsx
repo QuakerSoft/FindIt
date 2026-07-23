@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { getAllItems } from "../firebase/firestore";
 
 function ItemList() {
@@ -35,7 +36,14 @@ function ItemList() {
   }
 
   if (items.length === 0) {
-    return <p>No lost or found items have been reported yet.</p>;
+    return (
+      <section>
+        <div aria-hidden="true">📦</div>
+        <h2>No lost or found reports yet.</h2>
+        <p>Be the first to report a lost or found item!</p>
+        <Link to="/post">Post an Item</Link>
+      </section>
+    );
   }
 
   const categories = [
@@ -80,6 +88,14 @@ function ItemList() {
   });
   
   const noResultsMessage = "No items match your search.";
+
+  let noResultsMessage = "No matching items found.";
+
+  if (typeFilter === "lost") {
+    noResultsMessage = "No lost items match your search.";
+  } else if (typeFilter === "found") {
+    noResultsMessage = "No found items match your search.";
+  }
 
   return (
     <section className="rounded-3xl border border-slate-200 bg-white shadow-sm sm:p-8">
