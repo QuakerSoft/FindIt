@@ -28,7 +28,12 @@ function ItemList() {
   }, []);
 
   if (isLoading) {
-    return <p>Loading items...</p>;
+    return (
+      <section className="flex flex-col items-center justify-center py-20">
+        <div className="h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-red-600"></div>
+        <p className="mt-4 text-slate-600">Fetching campus reports...</p>
+      </section>
+    );
   }
 
   if (errorMessage) {
@@ -52,7 +57,12 @@ function ItemList() {
         .map((item) => item.category)
         .filter(Boolean)
     ),
-  ].sort();
+  ].sort((categoryA, categoryB) => {
+    if (categoryA === "Other") return 1;
+    if (categoryB === "Other") return -1;
+
+    return categoryA.localeCompare(categoryB);
+  });
 
   const filteredItems = items.filter((item) => {
     const searchText = searchTerm.toLowerCase();
