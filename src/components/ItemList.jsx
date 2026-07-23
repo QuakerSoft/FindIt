@@ -78,6 +78,8 @@ function ItemList() {
     ? timeB - timeA
     : timeA - timeB;
   });
+  
+  const noResultsMessage = "No items match your search.";
 
   return (
     <section className="rounded-3xl border border-slate-200 bg-white shadow-sm sm:p-8">
@@ -143,7 +145,7 @@ function ItemList() {
 
       <div>
         {filteredItems.length === 0 && (
-          <p>No items match your search.</p>
+          <p>{noResultsMessage}</p>
         )}
         <div className="grid grid-cols-4 gap-4">
           {sortedItems.map((item) => (
