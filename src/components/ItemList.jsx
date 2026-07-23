@@ -107,13 +107,14 @@ function ItemList() {
 
   return (
     <section className="rounded-3xl border border-slate-200 bg-white shadow-sm sm:p-8">
-      <h2 className="text-sm font-medium text-slate-700">Reported Items</h2>
+      <h2 className="text-xl font-medium">Reported Items</h2>
 
     <div className="ml--10 grid grid-cols-[300px_1fr] gap-6 item-start">
       <div className="flex flex-col gap-4">
         <div>
           <label htmlFor="item-search" className="mt-5 block text-sm font-medium text-slate-700">Search items</label>
           <input
+            className="mt-3 text-sm resize-none w-auto rounded-xl px-2 py-2 border border-slate-200 outline-none transition placeholder:text-slate-400 focus:border-red-500 focus:ring-4 focus:ring-red-50"
             id="item-search"
             type="search"
             placeholder="Search by title, category, building, or description"
@@ -122,9 +123,10 @@ function ItemList() {
           />
         </div>
 
-        <div>
-          <label htmlFor="type-filter" className="text-sm font-medium text-slate-700">Filter by type
+        <div className="flex items-center gap-4">
+          <label htmlFor="type-filter" className="flex items-center gap-2 text-sm font-medium text-slate-700">Filter by type
           <select
+          className="w-auto rounded-xl px-2 py-2 border border-slate-200 outline-none transition placeholder:text-slate-400 focus:border-red-500 focus:ring-4 focus:ring-red-50"
           id="type-filter"
           value={typeFilter}
           onChange={(event) => setTypeFilter(event.target.value)}
@@ -136,9 +138,10 @@ function ItemList() {
           </label>
         </div>
 
-        <div>
-          <label htmlFor="category-filter" className="text-sm font-medium text-slate-700">Filter by category
+        <div className="flex items-center gap-4">
+          <label htmlFor="category-filter" className="flex items-center gap-2 text-sm font-medium text-slate-700">Filter by category
           <select
+            className="w-auto rounded-xl px-2 py-2 border border-slate-200 outline-none transition placeholder:text-slate-400 focus:border-red-500 focus:ring-4 focus:ring-red-50"
             id="category-filter"
             value={categoryFilter}
             onChange={(event) => setCategoryFilter(event.target.value)}
@@ -154,8 +157,9 @@ function ItemList() {
         </div>
 
         <div>
-        <label htmlFor="sort-order" className="text-sm font-medium text-slate-700">Sort items
+        <label htmlFor="sort-order" className="flex items-center gap-2 text-sm font-medium text-slate-700">Sort items
         <select
+          className="w-auto rounded-xl px-2 py-2 border border-slate-200 outline-none transition placeholder:text-slate-400 focus:border-red-500 focus:ring-4 focus:ring-red-50"
           id="sort-order"
           value={sortOrder}
           onChange={(event) => setSortOrder(event.target.value)}
