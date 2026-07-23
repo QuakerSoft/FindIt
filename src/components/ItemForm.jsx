@@ -122,15 +122,30 @@ function ItemForm() {
 
         <label className="text-sm font-medium text-slate-700">
           Category
-          <input
+          <select
             name="category"
-            type="text"
-            placeholder="e.g., Electronics"
             value={formData.category}
             onChange={handleChange}
-            className={inputClass}
+            className={`${inputClass} bg-white`}
             required
-          />
+          >
+            <option value="">Select a category</option>
+            <option value="Backpack">Backpack</option>
+            <option value="Bag / Purse">Bag / Purse</option>
+            <option value="Clothing">Clothing</option>
+            <option value="Electronics">Electronics</option>
+            <option value="Chargers / Cables">Chargers / Cables</option>
+            <option value="Headphones">Headphones</option>
+            <option value="ID Card">ID Card</option>
+            <option value="Jewelry">Jewelry</option>
+            <option value="Keys">Keys</option>
+            <option value="Notebook">Notebook</option>
+            <option value="Phone">Phone</option>
+            <option value="Umbrella">Umbrella</option>
+            <option value="Wallet">Wallet</option>
+            <option value="Water Bottle">Water Bottle</option>
+            <option value="Other">Other</option>
+          </select>
         </label>
       </div>
 
