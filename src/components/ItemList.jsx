@@ -84,7 +84,7 @@ function ItemList() {
     ? timeB - timeA
     : timeA - timeB;
   });
-
+  
   let noResultsMessage = "No matching items found.";
 
   if (typeFilter === "lost") {
@@ -94,79 +94,96 @@ function ItemList() {
   }
 
   return (
-    <section>
-      <h2>Reported Items</h2>
+    <section className="rounded-3xl border border-slate-200 bg-white shadow-sm sm:p-8">
+      <h2 className="text-xl font-medium">Reported Items</h2>
 
-      <label htmlFor="item-search">Search items</label>
-      <input
-        id="item-search"
-        type="search"
-        placeholder="Search by title, category, building, or description"
-        value={searchTerm}
-        onChange={(event) => setSearchTerm(event.target.value)}
-      />
-
-      <label htmlFor="type-filter">Filter by type</label>
-      <select
-        id="type-filter"
-        value={typeFilter}
-        onChange={(event) => setTypeFilter(event.target.value)}
-      >
-        <option value="all">All items</option>
-        <option value="lost">Lost items</option>
-        <option value="found">Found items</option>
-      </select>
-
-      <label htmlFor="category-filter">Filter by category</label>
-      <select
-        id="category-filter"
-        value={categoryFilter}
-        onChange={(event) => setCategoryFilter(event.target.value)}
-      >
-        <option value="all">All categories</option>
-
-        {ITEM_CATEGORIES.map((category) => (
-          <option key={category} value={category}>
-            {category}
-          </option>
-        ))}
-      </select>
-
-      <label htmlFor="sort-order">Sort items</label>
-      <select
-        id="sort-order"
-        value={sortOrder}
-        onChange={(event) => setSortOrder(event.target.value)}
-      >
-        <option value="newest">Newest first</option>
-        <option value="oldest">Oldest first</option>
-      </select>
-
-      {filteredItems.length === 0 && (
+    <div className="ml--10 grid grid-cols-[300px_1fr] gap-6 item-start">
+      <div className="flex flex-col gap-4">
         <div>
-          <div aria-hidden="true">🔍</div>
-          <h3>{noResultsMessage}</h3>
-          <p>Try checking your spelling, using another keyword, or clearing your filters.</p>
+          <label htmlFor="item-search" className="mt-5 block text-sm font-medium text-slate-700">Search items</label>
+          <input
+            className="mt-3 text-sm resize-none w-auto rounded-xl px-2 py-2 border border-slate-200 outline-none transition placeholder:text-slate-400 focus:border-red-500 focus:ring-4 focus:ring-red-50"
+            id="item-search"
+            type="search"
+            placeholder="Search by title, category, building, or description"
+            value={searchTerm}
+            onChange={(event) => setSearchTerm(event.target.value)}
+          />
         </div>
-      )}
 
-      {sortedItems.map((item) => (
-        <article key={item.id}>
-          <h3>{item.title}</h3>
-          <p>{item.description}</p>
-          <p>Type: {item.type}</p>
-          <p>Category: {item.category}</p>
-          <p>Building: {item.building}</p>
-          <p>Location: {item.location}</p>
-          <p>Status: {item.status}</p>
-          <p>Reported:{" "}
-            {item.createdAt?.toDate
-            ? item.createdAt.toDate().toLocaleDateString()
-            : "Date unavailable"}
-          </p>
-          <hr />
-        </article>
-      ))}
+        <div className="flex items-center gap-4">
+          <label htmlFor="type-filter" className="flex items-center gap-2 text-sm font-medium text-slate-700">Filter by type
+          <select
+          className="w-auto rounded-xl px-2 py-2 border border-slate-200 outline-none transition placeholder:text-slate-400 focus:border-red-500 focus:ring-4 focus:ring-red-50"
+          id="type-filter"
+          value={typeFilter}
+          onChange={(event) => setTypeFilter(event.target.value)}
+          >
+          <option value="all">All items</option>
+          <option value="lost">Lost items</option>
+          <option value="found">Found items</option>
+          </select>
+          </label>
+        </div>
+
+        <div className="flex items-center gap-4">
+          <label htmlFor="category-filter" className="flex items-center gap-2 text-sm font-medium text-slate-700">Filter by category
+          <select
+            className="w-auto rounded-xl px-2 py-2 border border-slate-200 outline-none transition placeholder:text-slate-400 focus:border-red-500 focus:ring-4 focus:ring-red-50"
+            id="category-filter"
+            value={categoryFilter}
+            onChange={(event) => setCategoryFilter(event.target.value)}
+          >
+            <option value="all">All categories</option>
+            {ITEM_CATEGORIES.map((category) => (
+              <option key={category} value={category}>
+                {category}
+              </option>
+            ))}
+          </select>
+          </label>
+        </div>
+
+        <div>
+        <label htmlFor="sort-order" className="flex items-center gap-2 text-sm font-medium text-slate-700">Sort items
+        <select
+          className="w-auto rounded-xl px-2 py-2 border border-slate-200 outline-none transition placeholder:text-slate-400 focus:border-red-500 focus:ring-4 focus:ring-red-50"
+          id="sort-order"
+          value={sortOrder}
+          onChange={(event) => setSortOrder(event.target.value)}
+        >
+          <option value="newest">Newest first</option>
+          <option value="oldest">Oldest first</option>
+        </select>
+        </label>
+        </div>
+      </div>
+
+      <div>
+        {filteredItems.length === 0 && (
+          <p>{noResultsMessage}</p>
+        )}
+        <div className="grid grid-cols-4 gap-4">
+          {sortedItems.map((item) => (
+            <article key={item.id}>
+              <h3>{item.title}</h3>
+              <p>{item.description}</p>
+             <p>Type: {item.type}</p>
+              <p>Category: {item.category}</p>
+              <p>Building: {item.building}</p>
+              <p>Location: {item.location}</p>
+              <p>Status: {item.status}</p>
+              <p>Reported:{" "}
+                 {item.createdAt?.toDate
+                  ? item.createdAt.toDate().toLocaleDateString()
+                  : "Date unavailable"}
+              </p>
+              <hr />
+            </article>
+         ))}
+        </div>
+      </div>
+    </div>
     </section>
   );
 }
