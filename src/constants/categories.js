@@ -1,0 +1,17 @@
+export const ITEM_CATEGORIES = [
+  "Backpack",
+  "Bag / Purse",
+  "Clothing",
+  "Electronics",
+  "Chargers / Cables",
+  "Headphones",
+  "ID Card",
+  "Jewelry",
+  "Keys",
+  "Notebook",
+  "Phone",
+  "Umbrella",
+  "Wallet",
+  "Water Bottle",
+  "Other",
+];

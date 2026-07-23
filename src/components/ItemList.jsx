@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { getAllItems } from "../firebase/firestore";
+import { ITEM_CATEGORIES } from "../constants/categories";
 
 function ItemList() {
   const [items, setItems] = useState([]);
@@ -50,19 +51,6 @@ function ItemList() {
       </section>
     );
   }
-
-  const categories = [
-    ...new Set(
-      items
-        .map((item) => item.category)
-        .filter(Boolean)
-    ),
-  ].sort((categoryA, categoryB) => {
-    if (categoryA === "Other") return 1;
-    if (categoryB === "Other") return -1;
-
-    return categoryA.localeCompare(categoryB);
-  });
 
   const filteredItems = items.filter((item) => {
     const searchText = searchTerm.toLowerCase();
@@ -147,7 +135,7 @@ function ItemList() {
             onChange={(event) => setCategoryFilter(event.target.value)}
           >
             <option value="all">All categories</option>
-            {categories.map((category) => (
+            {ITEM_CATEGORIES.map((category) => (
               <option key={category} value={category}>
                 {category}
               </option>
