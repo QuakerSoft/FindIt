@@ -5,6 +5,8 @@ function ItemList() {
   const [items, setItems] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [typeFilter, setTypeFilter] = useState("all");
 
   useEffect(() => {
     async function loadItems() {
@@ -34,11 +36,51 @@ function ItemList() {
     return <p>No lost or found items have been reported yet.</p>;
   }
 
+  const filteredItems = items.filter((item) => {
+    const searchText = searchTerm.toLowerCase();
+
+    const matchesSearch =
+      item.title?.toLowerCase().includes(searchText) ||
+      item.description?.toLowerCase().includes(searchText) ||
+      item.category?.toLowerCase().includes(searchText) ||
+      item.building?.toLowerCase().includes(searchText) ||
+      item.location?.toLowerCase().includes(searchText);
+
+    const matchesType =
+      typeFilter === "all" || item.type === typeFilter;
+
+    return matchesSearch && matchesType;
+  });
+
   return (
     <section>
       <h2>Reported Items</h2>
 
-      {items.map((item) => (
+      <label htmlFor="item-search">Search items</label>
+      <input
+        id="item-search"
+        type="search"
+        placeholder="Search by title, category, building, or description"
+        value={searchTerm}
+        onChange={(event) => setSearchTerm(event.target.value)}
+      />
+
+      <label htmlFor="type-filter">Filter by type</label>
+      <select
+        id="type-filter"
+        value={typeFilter}
+        onChange={(event) => setTypeFilter(event.target.value)}
+      >
+        <option value="all">All items</option>
+        <option value="lost">Lost items</option>
+        <option value="found">Found items</option>
+      </select>
+
+      {filteredItems.length === 0 && (
+        <p>No items match your search.</p>
+      )}
+
+      {filteredItems.map((item) => (
         <article key={item.id}>
           <h3>{item.title}</h3>
           <p>{item.description}</p>
