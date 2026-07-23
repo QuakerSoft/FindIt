@@ -35,14 +35,14 @@ function Auth() {
 
     return (
         <div>
-            <h2>FindIt Login</h2>
+            <h2 class="pb-5">FindIt Login</h2>
 
             <input
             type="email"
             placeholder="Email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-        />
+            />
 
         <br /><br />
 

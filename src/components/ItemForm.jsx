@@ -66,15 +66,14 @@ function ItemForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit}>
-      <h2>Report an Item</h2>
-
-      <label htmlFor="type">Report Type</label>
-      <select
+    <form onSubmit={handleSubmit} className="px-15 pt-10 pb-15 border-3 border-[#D22030] rounded-2xl bg-[#D22030]/8">
+      <h2 class="pb-5 text-center text-xl">Report an Item</h2>
+      <label htmlFor="type">Report Type: </label>
+      <select className="bg-white/75 border border-[#D22030] rounded-sm"
         id="type"
         name="type"
         value={formData.type}
-        onChange={handleChange}
+        on Change={handleChange}
       >
         <option value="lost">Lost Item</option>
         <option value="found">Found Item</option>
@@ -83,25 +82,27 @@ function ItemForm() {
       <br />
       <br />
 
-      <label htmlFor="title">Item Title</label>
-      <input
+      <label htmlFor="title">Item Title: </label>
+      <input 
+        className="p-0.5 border border-[#D22030] bg-white/75 rounded-sm"
         id="title"
         name="title"
         type="text"
-        placeholder="Black backpack"
+        placeholder="Black Backpack"
         value={formData.title}
         onChange={handleChange}
         required
-      />
+       />
 
       <br />
       <br />
 
-      <label htmlFor="description">Description</label>
+      <label htmlFor="description">Description: </label>
       <textarea
+        className="resize-none inline-block align-top p-0.5 border border-[#D22030] bg-white/75 rounded-sm"
         id="description"
         name="description"
-        placeholder="Describe the item"
+        placeholder="Black backbag that had pins attached..."
         value={formData.description}
         onChange={handleChange}
         required
@@ -110,8 +111,9 @@ function ItemForm() {
       <br />
       <br />
 
-      <label htmlFor="category">Category</label>
+      <label htmlFor="category">Category: </label>
       <input
+        className="p-0.5 border border-[#D22030] bg-white/75 rounded-sm"
         id="category"
         name="category"
         type="text"
@@ -124,8 +126,9 @@ function ItemForm() {
       <br />
       <br />
 
-      <label htmlFor="building">Building</label>
+      <label htmlFor="building">Building: </label>
       <input
+        className="p-0.5 border border-[#D22030] bg-white/75 rounded-sm"
         id="building"
         name="building"
         type="text"
@@ -138,8 +141,9 @@ function ItemForm() {
       <br />
       <br />
 
-      <label htmlFor="location">Specific Location</label>
+      <label htmlFor="location">Specific Location: </label>
       <input
+        className="p-0.5 border border-[#D22030] bg-white/75 rounded-sm"
         id="location"
         name="location"
         type="text"
@@ -152,10 +156,8 @@ function ItemForm() {
       <br />
       <br />
 
-      <label htmlFor="dateReported">
-        Date Item Was Lost or Found
-      </label>
-      <input
+      <label htmlFor="dateReported">Date Item Was Lost or Found: </label>
+      <input class="p-0.5 bg-white/75 border border-[#D22030] rounded-sm"
         id="dateReported"
         name="dateReported"
         type="date"
@@ -167,8 +169,9 @@ function ItemForm() {
       <br />
       <br />
 
-      <label htmlFor="imageUrl">Image URL</label>
+      <label htmlFor="imageUrl">Image URL: </label>
       <input
+        className="p-0.5 border border-[#D22030] bg-white/75 rounded-sm"
         id="imageUrl"
         name="imageUrl"
         type="url"
@@ -179,10 +182,11 @@ function ItemForm() {
 
       <br />
       <br />
-
-      <button type="submit" disabled={isSubmitting}>
-        {isSubmitting ? "Submitting..." : "Submit Report"}
-      </button>
+      <div class="text-center text-xl">
+        <button type="submit" disabled={isSubmitting} class="text-white bg-[#D22030] p-3 rounded-xl">
+          {isSubmitting ? "Submitting..." : "Submit Report"}
+        </button>
+      </div>
 
       {message && <p>{message}</p>}
     </form>
