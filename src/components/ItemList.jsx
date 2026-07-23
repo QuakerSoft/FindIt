@@ -7,6 +7,8 @@ function ItemList() {
   const [errorMessage, setErrorMessage] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
+  const [sortOrder, setSortOrder] = useState("newest");
+  const [categoryFilter, setCategoryFilter] = useState("all");
 
   useEffect(() => {
     async function loadItems() {
@@ -36,6 +38,14 @@ function ItemList() {
     return <p>No lost or found items have been reported yet.</p>;
   }
 
+  const categories = [
+    ...new Set(
+      items
+        .map((item) => item.category)
+        .filter(Boolean)
+    ),
+  ].sort();
+
   const filteredItems = items.filter((item) => {
     const searchText = searchTerm.toLowerCase();
 
@@ -49,7 +59,24 @@ function ItemList() {
     const matchesType =
       typeFilter === "all" || item.type === typeFilter;
 
-    return matchesSearch && matchesType;
+    const matchesCategory =
+      categoryFilter === "all" || item.category === categoryFilter;
+
+    return matchesSearch && matchesType && matchesCategory;
+  });
+
+  const sortedItems = [...filteredItems].sort((itemA, itemB) => {
+  const timeA = itemA.createdAt?.toDate
+    ? itemA.createdAt.toDate().getTime()
+    : 0;
+
+  const timeB = itemB.createdAt?.toDate
+    ? itemB.createdAt.toDate().getTime()
+    : 0;
+
+  return sortOrder === "newest"
+    ? timeB - timeA
+    : timeA - timeB;
   });
 
   return (
@@ -76,11 +103,36 @@ function ItemList() {
         <option value="found">Found items</option>
       </select>
 
+      <label htmlFor="category-filter">Filter by category</label>
+      <select
+        id="category-filter"
+        value={categoryFilter}
+        onChange={(event) => setCategoryFilter(event.target.value)}
+      >
+        <option value="all">All categories</option>
+
+        {categories.map((category) => (
+          <option key={category} value={category}>
+            {category}
+          </option>
+        ))}
+      </select>
+
+      <label htmlFor="sort-order">Sort items</label>
+      <select
+        id="sort-order"
+        value={sortOrder}
+        onChange={(event) => setSortOrder(event.target.value)}
+      >
+        <option value="newest">Newest first</option>
+        <option value="oldest">Oldest first</option>
+      </select>
+
       {filteredItems.length === 0 && (
         <p>No items match your search.</p>
       )}
 
-      {filteredItems.map((item) => (
+      {sortedItems.map((item) => (
         <article key={item.id}>
           <h3>{item.title}</h3>
           <p>{item.description}</p>
@@ -89,6 +141,11 @@ function ItemList() {
           <p>Building: {item.building}</p>
           <p>Location: {item.location}</p>
           <p>Status: {item.status}</p>
+          <p>Reported:{" "}
+            {item.createdAt?.toDate
+            ? item.createdAt.toDate().toLocaleDateString()
+            : "Date unavailable"}
+          </p>
           <hr />
         </article>
       ))}
