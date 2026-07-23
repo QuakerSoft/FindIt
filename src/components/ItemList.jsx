@@ -87,8 +87,6 @@ function ItemList() {
     : timeA - timeB;
   });
   
-  const noResultsMessage = "No items match your search.";
-
   let noResultsMessage = "No matching items found.";
 
   if (typeFilter === "lost") {
