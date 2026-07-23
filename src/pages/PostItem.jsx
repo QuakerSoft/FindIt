@@ -4,7 +4,7 @@ function PostItem() {
   return (
     <div className="mx-auto max-w-3xl">
       <div className="mb-7">
-        <p className="text-sm font-semibold text-red-600">NEW REPORT</p>
+        <p className="text-sm font-semibold text-[#A6192E]">NEW REPORT</p>
         <h1 className="mt-1 text-3xl font-bold tracking-tight text-slate-900">
           Post a lost or found item
         </h1>

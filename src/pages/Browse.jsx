@@ -3,7 +3,7 @@ import ItemList from "../components/ItemList";
 function Browse() {
   return (
     <main>
-      <p className="text-sm font-semibold text-red-600">
+      <p className="text-sm font-semibold text-[#A6192E]">
         BROWSE
       </p>
       <h1 className="text-3xl font-semibold">

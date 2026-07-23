@@ -193,7 +193,7 @@ function ItemForm() {
         <button
           type="submit"
           disabled={isSubmitting}
-          className="rounded-xl bg-red-600 px-5 py-3 text-sm font-semibold text-white shadow-sm shadow-red-100 transition hover:bg-red-700 disabled:opacity-60"
+          className="rounded-xl bg-[#A6192E] px-5 py-3 text-sm font-semibold text-white shadow-sm shadow-red-100 transition hover:bg-red-700 disabled:opacity-60"
         >
           {isSubmitting ? "Submitting..." : "Submit report"}
         </button>
