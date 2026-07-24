@@ -16,6 +16,7 @@ function ItemForm() {
   });
   const [message, setMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [imageError, setImageError] = useState(false);
 
   function handleChange(event) {
     const { name, value } = event.target;
@@ -23,6 +24,10 @@ function ItemForm() {
       ...previousData,
       [name]: value,
     }));
+  
+    if (name === "imageUrl") {
+      setImageError(false);
+    }
   }
 
   async function handleSubmit(event) {
@@ -51,6 +56,9 @@ function ItemForm() {
         imageUrl: "",
         dateReported: "",
       });
+
+      setImageError(false);
+      
     } catch (error) {
       setMessage(error.message);
     } finally {
@@ -167,17 +175,48 @@ function ItemForm() {
         </label>
       </div>
 
-      <label className="mt-5 block text-sm font-medium text-slate-700">
-        Image URL (optional)
-        <input
-          name="imageUrl"
-          type="url"
-          placeholder="Optional image link"
-          value={formData.imageUrl}
-          onChange={handleChange}
-          className={inputClass}
-        />
-      </label>
+      <div className="mt-5">
+        <label className="block text-sm font-medium text-slate-700">
+          Image link (optional)
+          <input
+            name="imageUrl"
+            type="url"
+            placeholder="Paste a direct link to a photo"
+            value={formData.imageUrl}
+            onChange={handleChange}
+            className={inputClass}
+          />
+        </label>
+
+        <p className="mt-2 text-xs text-slate-500">
+          Use a direct image link ending in something like .jpg, .png, or .webp.
+        </p>
+
+        {formData.imageUrl && (
+          <div className="mt-4">
+            <p className="mb-2 text-sm font-medium text-slate-700">
+              Image preview
+            </p>
+
+            {imageError ? (
+              <div className="flex h-40 items-center justify-center rounded-2xl border border-dashed border-red-300 bg-red-50 px-6 text-center">
+                <p className="text-sm text-red-700">
+                  Unable to preview this image. Check that the link points directly to
+                  an image.
+                </p>
+              </div>
+            ) : (
+              <img
+                src={formData.imageUrl}
+                alt="Item preview"
+                className="h-72 w-full rounded-2xl border border-slate-200 bg-slate-50 object-contain p-2"
+                onError={() => setImageError(true)}
+                onLoad={() => setImageError(false)}
+              />
+            )}
+          </div>
+        )}
+      </div>
 
       <div className="mt-7 flex items-center justify-end gap-4 border-t border-slate-100 pt-6">
         {message && <p className="text-sm text-slate-600">{message}</p>}

@@ -197,6 +197,20 @@ function ItemList() {
               className="block rounded-2xl border border-slate-200 p-4 transition hover:-translate-y-1 hover:border-red-300 hover:shadow-md"
             >
               <article>
+                {item.imageUrl && (
+                  <div className="mb-3 flex justify-center rounded-xl bg-slate-50 p-2">
+                    <img
+                      src={item.imageUrl}
+                      alt={item.title}
+                      className="h-28 object-contain"
+                      referrerPolicy="no-referrer"
+                      onError={(event) => {
+                        event.currentTarget.parentElement.style.display = "none";
+                      }}
+                    />
+                  </div>
+                )}
+
               <h3>{item.title}</h3>
               <p>{item.description}</p>
              <p>Type: {item.type}</p>

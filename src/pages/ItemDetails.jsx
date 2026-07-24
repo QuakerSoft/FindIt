@@ -8,10 +8,13 @@ function ItemDetails() {
   const [item, setItem] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
+  const [imageError, setImageError] = useState(false);
 
   useEffect(() => {
     async function loadItem() {
       try {
+        setImageError(false);
+
         const itemData = await getItemById(itemId);
 
         if (!itemData) {
@@ -110,11 +113,24 @@ function ItemDetails() {
         </div>
 
         {item.imageUrl && (
-          <img
-            src={item.imageUrl}
-            alt={item.title}
-            className="mt-6 max-h-96 w-full rounded-2xl object-cover"
-          />
+          <div className="mt-6">
+            {imageError ? (
+              <div className="flex h-56 items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-6 text-center">
+                <p className="text-sm text-slate-600">
+                  This item’s image could not be loaded.
+                </p>
+              </div>
+            ) : (
+              <img
+                src={item.imageUrl}
+                alt={item.title}
+                referrerPolicy="no-referrer"
+                className="max-h-96 w-full rounded-2xl border border-slate-200 bg-slate-50 object-contain p-2"
+                onError={() => setImageError(true)}
+                onLoad={() => setImageError(false)}
+              />
+            )}
+          </div>
         )}
       </article>
     </main>
