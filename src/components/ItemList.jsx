@@ -161,11 +161,42 @@ function ItemList() {
 
       <div>
         {filteredItems.length === 0 && (
-          <p>{noResultsMessage}</p>
+          <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 px-6 py-12 text-center">
+            <div className="text-3xl" aria-hidden="true">
+              🔍
+            </div>
+
+            <h3 className="mt-3 text-lg font-semibold text-slate-900">
+              {noResultsMessage}
+            </h3>
+
+            <p className="mt-2 max-w-md text-sm text-slate-600">
+              Try checking your spelling, using a different keyword, or changing your
+              filters.
+            </p>
+
+            <button
+              type="button"
+              onClick={() => {
+                setSearchTerm("");
+                setTypeFilter("all");
+                setCategoryFilter("all");
+                setSortOrder("newest");
+              }}
+              className="mt-5 rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-red-300 hover:text-red-600"
+            >
+              Clear search and filters
+            </button>
+          </div>
         )}
         <div className="grid grid-cols-4 gap-4">
           {sortedItems.map((item) => (
-            <article key={item.id}>
+            <Link
+              key={item.id}
+              to={`/items/${item.id}`}
+              className="block rounded-2xl border border-slate-200 p-4 transition hover:-translate-y-1 hover:border-red-300 hover:shadow-md"
+            >
+              <article>
               <h3>{item.title}</h3>
               <p>{item.description}</p>
              <p>Type: {item.type}</p>
@@ -178,8 +209,8 @@ function ItemList() {
                   ? item.createdAt.toDate().toLocaleDateString()
                   : "Date unavailable"}
               </p>
-              <hr />
             </article>
+          </Link>
          ))}
         </div>
       </div>
