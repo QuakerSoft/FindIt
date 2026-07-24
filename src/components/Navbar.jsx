@@ -1,7 +1,30 @@
-import { Link, useLocation } from 'react-router-dom';
+import { useEffect, useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { onAuthStateChanged, signOut } from "firebase/auth";
+import { auth } from "../firebase/config";
 
 function Navbar() {
   const location = useLocation();
+  const navigate = useNavigate();
+  const [currentUser, setCurrentUser] = useState(null);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setCurrentUser(user);
+    });
+
+    return unsubscribe;
+  }, []);
+
+  async function handleLogout() {
+    try {
+      await signOut(auth);
+      navigate("/");
+    } catch (error) {
+      console.error(error);
+      alert("Unable to log out. Please try again.");
+    }
+  }
 
   const links = [
     { to: '/', label: 'Home' },
@@ -36,12 +59,22 @@ function Navbar() {
               </Link>
             );
           })}
-          <Link
-to="/login"
-            className="ml-3 border-2 border-white text-white px-4 py-1.5 rounded-full text-sm font-medium hover:bg-white hover:text-[#A6192E] transition-colors"
-          >
-            Log In
-          </Link>
+          {currentUser ? (
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="ml-3 border-2 border-white text-white px-4 py-1.5 rounded-full text-sm font-medium hover:bg-white hover:text-[#A6192E] transition-colors"
+            >
+              Log Out
+            </button>
+          ) : (
+            <Link
+              to="/login"
+              className="ml-3 border-2 border-white text-white px-4 py-1.5 rounded-full text-sm font-medium hover:bg-white hover:text-[#A6192E] transition-colors"
+            >
+              Log In
+            </Link>
+          )}
         </div>
       </div>
     </nav>
