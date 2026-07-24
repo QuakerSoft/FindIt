@@ -1,9 +1,11 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { auth, db } from "../firebase/config";
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from "firebase/auth";
 import { doc, setDoc } from "firebase/firestore";
 
 function Auth() {
+    const navigate = useNavigate();
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
 
@@ -18,7 +20,7 @@ function Auth() {
                         role: "student",
                     }
                 );
-            alert("Account created successfully!");
+            navigate("/browse");
         } catch (error) {
             alert(error.message);
         }
@@ -27,7 +29,7 @@ function Auth() {
     const logIn = async () => {
         try {
             await signInWithEmailAndPassword(auth, email, password);
-            alert("Logged in!");
+            navigate("/browse");
         } catch (error) {
             alert(error.message);
         }
@@ -59,12 +61,14 @@ function Auth() {
 
                 <div className="flex gap-3 mt-6">
                     <button
+                        type="button"
                         onClick={logIn}
                         className="flex-1 bg-[#A6192E] text-white font-medium py-2.5 rounded-sm hover:bg-[#8a1526] transition-colors"
                     >
                         Log In
                     </button>
                     <button
+                        type="button"
                         onClick={signUp}
                         className="flex-1 border-2 border-[#1C1B19] text-[#1C1B19] font-medium py-2.5 rounded-sm hover:bg-[#1C1B19] hover:text-white transition-colors"
                     >
