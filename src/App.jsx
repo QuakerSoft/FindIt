@@ -5,6 +5,7 @@ import Browse from './pages/Browse';
 import PostItem from './pages/PostItem';
 import ItemDetails from "./pages/ItemDetails";
 import Auth from './components/Auth';
+import ProtectedRoute from "./components/ProtectedRoute";
 
 function App() {
   return (
@@ -14,7 +15,14 @@ function App() {
           <Route path="/" element={<Home />} />
           <Route path="/browse" element={<Browse />} />
           <Route path="/items/:itemId" element={<ItemDetails />} />
-          <Route path="/post" element={<PostItem />} />
+          <Route
+            path="/post"
+            element={
+              <ProtectedRoute>
+                <PostItem />
+              </ProtectedRoute>
+            }
+          />
           <Route path="/login" element={<Auth />} />
         </Routes>
       </Layout>
