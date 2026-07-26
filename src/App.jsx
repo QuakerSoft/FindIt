@@ -6,6 +6,8 @@ import PostItem from './pages/PostItem';
 import ItemDetails from "./pages/ItemDetails";
 import Auth from './components/Auth';
 import ProtectedRoute from "./components/ProtectedRoute";
+import CompleteProfile from "./pages/CompleteProfile";
+import ForgotPassword from "./pages/ForgotPassword";
 
 function App() {
   return (
@@ -23,6 +25,15 @@ function App() {
               </ProtectedRoute>
             }
           />
+            <Route
+              path="/complete-profile"
+              element={
+            <ProtectedRoute>
+              <CompleteProfile />
+            </ProtectedRoute>
+          }
+        />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/login" element={<Auth />} />
         </Routes>
       </Layout>
