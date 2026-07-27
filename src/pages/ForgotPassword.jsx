@@ -1,7 +1,5 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { sendPasswordResetEmail } from "firebase/auth";
-import { auth } from "../firebase/config";
 
 function ForgotPassword() {
     const [email, setEmail] = useState("");
@@ -16,22 +14,6 @@ function ForgotPassword() {
             normalizedEmail.endsWith("@my.csun.edu") ||
             normalizedEmail.endsWith("@csun.edu")
         );
-    }
-
-    function getResetErrorMessage(errorCode) {
-        switch (errorCode) {
-            case "auth/invalid-email":
-                return "Please enter a valid email address.";
-
-            case "auth/too-many-requests":
-                return "Too many reset attempts. Please wait and try again.";
-
-            case "auth/network-request-failed":
-                return "Unable to connect. Check your internet connection and try again.";
-
-            default:
-                return "Unable to request a password reset. Please try again.";
-        }
     }
 
     async function handleReset(event) {
@@ -59,14 +41,22 @@ function ForgotPassword() {
         try {
             setIsSending(true);
 
-            await sendPasswordResetEmail(auth, normalizedEmail);
+            const response = await fetch("/api/send-reset-email", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ email: normalizedEmail }),
+            });
+
+            if (!response.ok) {
+                throw new Error("Reset request failed");
+            }
 
             setMessage(
                 "If an eligible account exists for this email, a password reset link has been requested. Check your inbox or spam."
             );
             setMessageType("success");
-        } catch (error) {
-            setMessage(getResetErrorMessage(error.code));
+        } catch{
+            setMessage("Unable to request a password reset. Please try again.");
             setMessageType("error");
         } finally {
             setIsSending(false);
