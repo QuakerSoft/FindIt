@@ -55,7 +55,7 @@ function ForgotPassword() {
                 "If an eligible account exists for this email, a password reset link has been requested. Check your inbox or spam."
             );
             setMessageType("success");
-        } catch (error) {
+        } catch{
             setMessage("Unable to request a password reset. Please try again.");
             setMessageType("error");
         } finally {
