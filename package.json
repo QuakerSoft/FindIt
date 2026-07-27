@@ -10,8 +10,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@sendgrid/mail": "^8.1.6",
     "@tailwindcss/vite": "^4.3.2",
     "firebase": "^12.16.0",
+    "firebase-admin": "^14.2.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "react-router-dom": "^7.18.1",
