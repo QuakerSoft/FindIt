@@ -35,13 +35,13 @@ function Home() {
         <div className="flex gap-4 justify-center">
           <Link
             to="/post"
-            className="bg-[#A6192E] text-white px-6 py-3 rounded-sm font-medium hover:bg-[#8a1526] transition-colors"
+            className="bg-[#A6192E] text-white px-6 py-3 rounded-sm font-medium border border-transparent transition hover:bg-white hover:text-[#A6192E] hover:border-[#A6192E]"
           >
             Post an Item
           </Link>
           <Link
             to="/browse"
-            className="border-2 border-[#1C1B19] text-[#1C1B19] px-6 py-3 rounded-sm font-medium hover:bg-[#1C1B19] hover:text-white transition-colors"
+            className="bg-[#A6192E] text-white px-6 py-3 rounded-sm font-medium border border-transparent transition hover:bg-white hover:text-[#A6192E] hover:border-[#A6192E]"
           >
             Browse Items
           </Link>
