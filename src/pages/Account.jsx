@@ -96,6 +96,33 @@ function Account() {
         loadAccount();
     }, []);
 
+    function formatPhoneNumber(phoneValue) {
+        if (!phoneValue) {
+            return "Not provided";
+        }
+
+        const digitsOnly = phoneValue.replace(/\D/g, "");
+
+        if (digitsOnly.length !== 10) {
+            return phoneValue;
+        }
+
+        return `(${digitsOnly.slice(0, 3)}) ${digitsOnly.slice(
+            3,
+            6
+        )}-${digitsOnly.slice(6)}`;
+    }
+
+    function formatContactPreference(preference) {
+        const preferenceLabels = {
+            email: "Email",
+            phone: "Phone",
+            both: "Email and phone",
+        };
+
+        return preferenceLabels[preference] || "Not specified";
+    }
+
     function isValidPhoneNumber(phoneValue) {
         const digitsOnly = phoneValue.replace(/\D/g, "");
         return digitsOnly.length === 10;
@@ -372,15 +399,59 @@ function Account() {
                     </div>
                 </form>
             ) : (
-                <section className="mt-6">
-                    <p>
-                        Welcome, {profile.firstName} {profile.lastName}
+                <section className="mt-6 max-w-xl">
+                    <p className="text-lg text-slate-700">
+                        Welcome,{" "}
+                        <span className="font-semibold text-slate-900">
+                            {profile.firstName} {profile.lastName}
+                        </span>
                     </p>
 
-                    <p>{profile.email}</p>
-                    <p>{profile.role}</p>
-                    <p>{profile.contactPreference}</p>
-                    <p>{profile.phoneNumber || "No phone number"}</p>
+                    <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                        <h2 className="text-lg font-semibold text-slate-900">
+                            Profile Information
+                        </h2>
+
+                        <dl className="mt-4 space-y-4">
+                            <div>
+                                <dt className="text-sm font-medium text-slate-500">
+                                    Email
+                                </dt>
+                                <dd className="mt-1 text-slate-900">
+                                    {profile.email}
+                                </dd>
+                            </div>
+
+                            <div>
+                                <dt className="text-sm font-medium text-slate-500">
+                                    Account type
+                                </dt>
+                                <dd className="mt-1 capitalize text-slate-900">
+                                    {profile.role || "Not specified"}
+                                </dd>
+                            </div>
+
+                            <div>
+                                <dt className="text-sm font-medium text-slate-500">
+                                    Preferred contact method
+                                </dt>
+                                <dd className="mt-1 text-slate-900">
+                                    {formatContactPreference(
+                                        profile.contactPreference
+                                    )}
+                                </dd>
+                            </div>
+
+                            <div>
+                                <dt className="text-sm font-medium text-slate-500">
+                                    Phone number
+                                </dt>
+                                <dd className="mt-1 text-slate-900">
+                                    {formatPhoneNumber(profile.phoneNumber)}
+                                </dd>
+                            </div>
+                        </dl>
+                    </div>
 
                     <button
                         type="button"
