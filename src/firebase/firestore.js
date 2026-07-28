@@ -85,7 +85,6 @@ export async function updateItem(id, updateData) {
 export async function deleteItem(id) {
   const itemRef = doc(db, "items", id);
 
-<<<<<<< HEAD
   await deleteDoc(itemRef);
 }
 
@@ -109,59 +108,56 @@ export async function createReport(reportData) {
     status: "pending",
     createdAt: serverTimestamp(),
   });
-=======
-    await deleteDoc(itemRef);
 }
 
 export async function getUserProfile(userId) {
-    if (!userId) {
-        throw new Error("A user ID is required to load a profile.");
-    }
+  if (!userId) {
+    throw new Error("A user ID is required to load a profile.");
+  }
 
-    const userRef = doc(db, "users", userId);
-    const userSnapshot = await getDoc(userRef);
+  const userRef = doc(db, "users", userId);
+  const userSnapshot = await getDoc(userRef);
 
-    if (!userSnapshot.exists()) {
-        return null;
-    }
+  if (!userSnapshot.exists()) {
+    return null;
+  }
 
-    return {
-        id: userSnapshot.id,
-        ...userSnapshot.data(),
-    };
+  return {
+    id: userSnapshot.id,
+    ...userSnapshot.data(),
+  };
 }
 
 export async function updateUserProfile(userId, profileData) {
-    if (!userId) {
-        throw new Error("A user ID is required to update a profile.");
-    }
+  if (!userId) {
+    throw new Error("A user ID is required to update a profile.");
+  }
 
-    const userRef = doc(db, "users", userId);
+  const userRef = doc(db, "users", userId);
 
-    await updateDoc(userRef, {
-        firstName: profileData.firstName,
-        lastName: profileData.lastName,
-        phoneNumber: profileData.phoneNumber,
-        contactPreference: profileData.contactPreference,
-    });
+  await updateDoc(userRef, {
+    firstName: profileData.firstName,
+    lastName: profileData.lastName,
+    phoneNumber: profileData.phoneNumber,
+    contactPreference: profileData.contactPreference,
+  });
 }
 
 export async function getItemsByOwner(ownerId) {
-    if (!ownerId) {
-        throw new Error("A user ID is required to load reports.");
-    }
+  if (!ownerId) {
+    throw new Error("A user ID is required to load reports.");
+  }
 
-    const itemsRef = collection(db, "items");
-    const ownerQuery = query(
-        itemsRef,
-        where("ownerId", "==", ownerId)
-    );
+  const itemsRef = collection(db, "items");
+  const ownerQuery = query(
+    itemsRef,
+    where("ownerId", "==", ownerId)
+  );
 
-    const querySnapshot = await getDocs(ownerQuery);
+  const querySnapshot = await getDocs(ownerQuery);
 
-    return querySnapshot.docs.map((itemDoc) => ({
-        id: itemDoc.id,
-        ...itemDoc.data(),
-    }));
->>>>>>> 0f564a1740036822c6e2340534bba844e27792b1
+  return querySnapshot.docs.map((itemDoc) => ({
+    id: itemDoc.id,
+    ...itemDoc.data(),
+  }));
 }

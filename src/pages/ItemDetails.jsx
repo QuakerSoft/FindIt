@@ -1,12 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { getItemById } from "../firebase/firestore";
-<<<<<<< HEAD
 import ReportPost from "../components/ReportPost";
-=======
 import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "../firebase/config";
->>>>>>> 0f564a1740036822c6e2340534bba844e27792b1
 
 function ItemDetails() {
   const { itemId } = useParams();
