@@ -6,7 +6,7 @@ export const ITEM_CATEGORIES = [
   "Chargers / Cables",
   "Headphones",
   "ID Card",
-  "Jewelry",
+  "Accessory",
   "Keys",
   "Notebook",
   "Phone",

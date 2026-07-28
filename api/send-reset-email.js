@@ -1,11 +1,11 @@
-import admin from 'firebase-admin';
+import { initializeApp, cert, getApps } from 'firebase-admin/app';
+import { getAuth } from 'firebase-admin/auth';
 import sgMail from '@sendgrid/mail';
 
-// Initialize Firebase Admin (only once, even across multiple invocations)
-if (!admin.apps.length) {
+if (!getApps().length) {
   const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
+  initializeApp({
+    credential: cert(serviceAccount),
   });
 }
 
@@ -23,7 +23,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const resetLink = await admin.auth().generatePasswordResetLink(email);
+    const resetLink = await getAuth().generatePasswordResetLink(email);
 
     const msg = {
       to: email,
@@ -47,7 +47,6 @@ export default async function handler(req, res) {
     console.error('Error sending reset email:', error);
 
     if (error.code === 'auth/user-not-found') {
-      // Don't reveal whether the email exists, for security
       return res.status(200).json({ success: true });
     }
 

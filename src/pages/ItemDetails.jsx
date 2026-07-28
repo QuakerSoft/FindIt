@@ -1,7 +1,12 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { getItemById } from "../firebase/firestore";
+<<<<<<< HEAD
 import ReportPost from "../components/ReportPost";
+=======
+import { onAuthStateChanged } from "firebase/auth";
+import { auth } from "../firebase/config";
+>>>>>>> 0f564a1740036822c6e2340534bba844e27792b1
 
 function ItemDetails() {
   const { itemId } = useParams();
@@ -10,6 +15,7 @@ function ItemDetails() {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
   const [imageError, setImageError] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
 
   useEffect(() => {
     async function loadItem() {
@@ -35,6 +41,17 @@ function ItemDetails() {
 
     loadItem();
   }, [itemId]);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setCurrentUser(user);
+    });
+
+    return unsubscribe;
+  }, []);
+
+  const isOwner =
+    currentUser && item && currentUser.uid === item.ownerId;
 
   if (isLoading) {
     return (
@@ -153,6 +170,16 @@ function ItemDetails() {
                 onLoad={() => setImageError(false)}
               />
             )}
+          </div>
+        )}
+        {isOwner && (
+          <div className="mt-6 border-t border-slate-200 pt-5">
+            <Link
+              to={`/items/${item.id}/edit`}
+              className="inline-block rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700"
+            >
+              Edit Report
+            </Link>
           </div>
         )}
       </article>
