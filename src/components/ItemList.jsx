@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { getAllItems } from "../firebase/firestore";
 import { ITEM_CATEGORIES } from "../constants/categories";
+import { onAuthStateChanged } from "firebase/auth";
+import { auth } from "../firebase/config";
 
 function ItemList() {
   const [items, setItems] = useState([]);
@@ -11,6 +13,15 @@ function ItemList() {
   const [typeFilter, setTypeFilter] = useState("all");
   const [sortOrder, setSortOrder] = useState("newest");
   const [categoryFilter, setCategoryFilter] = useState("all");
+  const [currentUser, setCurrentUser] = useState(null);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setCurrentUser(user);
+    });
+
+    return unsubscribe;
+  }, []);
 
   useEffect(() => {
     async function loadItems() {
@@ -97,7 +108,7 @@ function ItemList() {
     <section className="rounded-3xl border border-slate-200 bg-white shadow-sm sm:p-8">
       <h2 className="text-xl font-medium">Reported Items</h2>
 
-    <div className="ml--10 grid grid-cols-[300px_1fr] gap-6 item-start">
+    <div className="ml--10 grid grid-cols-[300px_1fr] gap-6 items-start">
       <div className="flex flex-col gap-4">
         <div>
           <label htmlFor="item-search" className="mt-5 block text-sm font-medium text-slate-700">Search items</label>
@@ -190,13 +201,19 @@ function ItemList() {
           </div>
         )}
         <div className="grid grid-cols-4 gap-4">
-          {sortedItems.map((item) => (
-            <Link
-              key={item.id}
-              to={`/items/${item.id}`}
-              className="block rounded-2xl border border-slate-200 p-4 transition hover:-translate-y-1 hover:border-red-300 hover:shadow-md"
-            >
-              <article>
+          {sortedItems.map((item) => {
+            const isOwner = currentUser?.uid === item.ownerId;
+
+            return (
+              <article
+                key={item.id}
+                className="relative flex cursor-pointer flex-col rounded-2xl border border-slate-200 p-4 transition hover:-translate-y-1 hover:border-red-300 hover:shadow-md"
+              >
+                <Link
+                  to={`/items/${item.id}`}
+                  aria-label={`View report: ${item.title}`}
+                  className="absolute inset-0 rounded-2xl focus:outline-none focus:ring-4 focus:ring-red-100"
+                />
                 {item.imageUrl && (
                   <div className="mb-3 flex justify-center rounded-xl bg-slate-50 p-2">
                     <img
@@ -205,27 +222,49 @@ function ItemList() {
                       className="h-28 object-contain"
                       referrerPolicy="no-referrer"
                       onError={(event) => {
-                        event.currentTarget.parentElement.style.display = "none";
+                        event.currentTarget.parentElement.style.display =
+                          "none";
                       }}
                     />
                   </div>
                 )}
 
-              <h3>{item.title}</h3>
-              <p>{item.description}</p>
-             <p>Type: {item.type}</p>
-              <p>Category: {item.category}</p>
-              <p>Building: {item.building}</p>
-              <p>Location: {item.location}</p>
-              <p>Status: {item.status}</p>
-              <p>Reported:{" "}
-                 {item.createdAt?.toDate
-                  ? item.createdAt.toDate().toLocaleDateString()
-                  : "Date unavailable"}
-              </p>
-            </article>
-          </Link>
-         ))}
+                <h3 className="font-semibold text-slate-900">
+                  {item.title}
+                </h3>
+
+                <p className="mt-1 text-sm text-slate-600">
+                  {item.description}
+                </p>
+
+                <div className="mt-3 space-y-1 text-sm text-slate-600">
+                  <p>Type: {item.type}</p>
+                  <p>Category: {item.category}</p>
+                  <p>Building: {item.building}</p>
+                  <p>Location: {item.location}</p>
+                  <p>Status: {item.status}</p>
+
+                  <p>
+                    Reported:{" "}
+                    {item.createdAt?.toDate
+                      ? item.createdAt.toDate().toLocaleDateString()
+                      : "Date unavailable"}
+                  </p>
+                </div>
+
+                {isOwner && (
+                  <div className="relative z-10 mt-auto pt-5">
+                    <Link
+                      to={`/items/${item.id}/edit`}
+                      className="inline-block rounded-xl border border-blue-300 bg-white px-3 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-50"
+                    >
+                      Edit Report
+                    </Link>
+                  </div>
+                )}
+              </article>
+            );
+          })}
         </div>
       </div>
     </div>

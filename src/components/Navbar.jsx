@@ -60,21 +60,55 @@ function Navbar() {
             );
           })}
           {currentUser ? (
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="ml-3 border-2 border-white text-white px-4 py-1.5 rounded-full text-sm font-medium hover:bg-white hover:text-[#A6192E] transition-colors"
-            >
-              Log Out
-            </button>
-          ) : (
+            <>
+                <Link
+                    to="/account"
+                    aria-label="Open account"
+                    className={`ml-3 flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
+                        location.pathname === "/account"
+                            ? "bg-white text-[#A6192E]"
+                            : "text-white hover:bg-white/15"
+                    }`}
+                >
+                    <span
+                        className={`flex h-7 w-7 items-center justify-center rounded-full ${
+                            location.pathname === "/account"
+                                ? "bg-[#A6192E] text-white"
+                                : "bg-white text-[#A6192E]"
+                        }`}
+                    >
+                        <svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            className="h-4 w-4"
+                            aria-hidden="true"
+                        >
+                            <circle cx="12" cy="8" r="4" />
+                            <path d="M4 21a8 8 0 0 1 16 0" />
+                        </svg>
+                    </span>
+
+                    <span>Account</span>
+                </Link>
+
+                <button
+                    type="button"
+                    onClick={handleLogout}
+                    className="ml-2 rounded-full border-2 border-white px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-white hover:text-[#A6192E]"
+                >
+                    Log Out
+                </button>
+            </>
+        ) : (
             <Link
-              to="/login"
-              className="ml-3 border-2 border-white text-white px-4 py-1.5 rounded-full text-sm font-medium hover:bg-white hover:text-[#A6192E] transition-colors"
+                to="/login"
+                className="ml-3 rounded-full border-2 border-white px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-white hover:text-[#A6192E]"
             >
-              Log In
+                Log In
             </Link>
-          )}
+        )}
         </div>
       </div>
     </nav>

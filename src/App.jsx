@@ -8,6 +8,8 @@ import Auth from './components/Auth';
 import ProtectedRoute from "./components/ProtectedRoute";
 import CompleteProfile from "./pages/CompleteProfile";
 import ForgotPassword from "./pages/ForgotPassword";
+import Account from "./pages/Account";
+import EditItem from "./pages/EditItem";
 
 function App() {
   return (
@@ -18,10 +20,26 @@ function App() {
           <Route path="/browse" element={<Browse />} />
           <Route path="/items/:itemId" element={<ItemDetails />} />
           <Route
+            path="/items/:itemId/edit"
+            element={
+              <ProtectedRoute>
+                <EditItem />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/post"
             element={
               <ProtectedRoute>
                 <PostItem />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/account"
+            element={
+              <ProtectedRoute>
+                <Account />
               </ProtectedRoute>
             }
           />
