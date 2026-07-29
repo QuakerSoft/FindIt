@@ -395,7 +395,7 @@ function Account() {
                             type="button"
                             onClick={handleCancelEdit}
                             disabled={isSaving}
-                            className="rounded-xl border border-slate-300 px-5 py-2.5 font-semibold"
+                            className="rounded-xl border border-slate-300 px-5 py-2.5 font-semibold transition hover:bg-slate-100"
                         >
                             Cancel
                         </button>
