@@ -27,6 +27,7 @@ export async function createItem(itemData) {
         status: "open",
         imageUrl: itemData.imageUrl || "",
         ownerId: itemData.ownerId,
+        ownerEmail: itemData.ownerEmail,
         dateReported: itemData.dateReported,
         createdAt: serverTimestamp(),
     };
@@ -40,31 +41,36 @@ export async function getAllItems() {
     const itemsRef = collection(db, "items");
     const querySnapshot = await getDocs(itemsRef);
 
-    const items = querySnapshot.docs.map((itemDoc) => ({
+    return querySnapshot.docs.map((itemDoc) => ({
         id: itemDoc.id,
         ...itemDoc.data(),
     }));
-
-    return items;
 }
 
 export async function getItemsByType(type) {
-  if (type !== "lost" && type !== "found") {
-    throw new Error('Item type must be either "lost" or "found".');
-  }
+    if (type !== "lost" && type !== "found") {
+        throw new Error('Item type must be either "lost" or "found".');
+    }
 
-  const itemsRef = collection(db, "items");
-  const q = query(itemsRef, where("type", "==", type));
-  const querySnapshot = await getDocs(q);
-  const items = querySnapshot.docs.map((itemDoc) => ({
+    const itemsRef = collection(db, "items");
+    const itemsQuery = query(
+        itemsRef,
+        where("type", "==", type)
+    );
+
+    const querySnapshot = await getDocs(itemsQuery);
+
+    return querySnapshot.docs.map((itemDoc) => ({
         id: itemDoc.id,
         ...itemDoc.data(),
-  }));
-
-  return items;
+    }));
 }
 
 export async function getItemById(id) {
+    if (!id) {
+        throw new Error("An item ID is required.");
+    }
+
     const itemRef = doc(db, "items", id);
     const itemSnapshot = await getDoc(itemRef);
 
@@ -79,15 +85,55 @@ export async function getItemById(id) {
 }
 
 export async function updateItem(id, updateData) {
+    if (!id) {
+        throw new Error("An item ID is required.");
+    }
+
     const itemRef = doc(db, "items", id);
 
     await updateDoc(itemRef, updateData);
 }
 
 export async function deleteItem(id) {
+    if (!id) {
+        throw new Error("An item ID is required.");
+    }
+
     const itemRef = doc(db, "items", id);
 
     await deleteDoc(itemRef);
+}
+
+export async function createReport(reportData) {
+    if (!reportData.itemId) {
+        throw new Error("An item ID is required.");
+    }
+
+    if (!reportData.reporterId) {
+        throw new Error("You must be logged in to report an item.");
+    }
+
+    const reportId = `${reportData.itemId}_${reportData.reporterId}`;
+    const reportRef = doc(db, "reports", reportId);
+    const existingReport = await getDoc(reportRef);
+
+    if (existingReport.exists()) {
+        throw new Error("ALREADY_REPORTED");
+    }
+
+    await setDoc(reportRef, {
+        itemId: reportData.itemId,
+        itemTitle: reportData.itemTitle,
+        itemOwnerId: reportData.itemOwnerId,
+        reporterId: reportData.reporterId,
+        reporterEmail: reportData.reporterEmail,
+        reason: reportData.reason,
+        details: reportData.details || "",
+        status: "pending",
+        createdAt: serverTimestamp(),
+    });
+
+    return reportId;
 }
 
 export async function getUserProfile(userId) {
@@ -156,7 +202,9 @@ export async function createClaim(claimData) {
     }
 
     if (claimData.ownerId === claimData.claimantId) {
-        throw new Error("You cannot submit a request for your own report.");
+        throw new Error(
+            "You cannot submit a request for your own report."
+        );
     }
 
     const trimmedMessage = claimData.message?.trim();
@@ -168,7 +216,6 @@ export async function createClaim(claimData) {
     }
 
     const claimsRef = collection(db, "claims");
-
     const claimantQuery = query(
         claimsRef,
         where("claimantId", "==", claimData.claimantId)

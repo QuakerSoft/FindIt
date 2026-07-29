@@ -2,27 +2,16 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { getAllItems } from "../firebase/firestore";
 import { ITEM_CATEGORIES } from "../constants/categories";
-import { onAuthStateChanged } from "firebase/auth";
-import { auth } from "../firebase/config";
-import ReportActionsMenu from "./ReportActionsMenu";
 
 function ItemList() {
   const [items, setItems] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
+
   const [searchTerm, setSearchTerm] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
-  const [sortOrder, setSortOrder] = useState("newest");
   const [categoryFilter, setCategoryFilter] = useState("all");
-  const [currentUser, setCurrentUser] = useState(null);
-
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setCurrentUser(user);
-    });
-
-    return unsubscribe;
-  }, []);
+  const [sortOrder, setSortOrder] = useState("newest");
 
   useEffect(() => {
     async function loadItems() {
@@ -30,7 +19,7 @@ function ItemList() {
         const itemData = await getAllItems();
         setItems(itemData);
       } catch (error) {
-        console.error(error);
+        console.error("Unable to load items:", error);
         setErrorMessage("Unable to load item reports.");
       } finally {
         setIsLoading(false);
@@ -40,251 +29,297 @@ function ItemList() {
     loadItems();
   }, []);
 
-  if (isLoading) {
-    return (
-      <section className="flex flex-col items-center justify-center py-20">
-        <div className="h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-red-600"></div>
-        <p className="mt-4 text-slate-600">Fetching campus reports...</p>
-      </section>
-    );
+  function clearFilters() {
+    setSearchTerm("");
+    setTypeFilter("all");
+    setCategoryFilter("all");
+    setSortOrder("newest");
   }
 
-  if (errorMessage) {
-    return <p>{errorMessage}</p>;
+  function getCreatedTime(item) {
+    if (item.createdAt?.toDate) {
+      return item.createdAt.toDate().getTime();
+    }
+
+    return 0;
   }
 
-  if (items.length === 0) {
-    return (
-      <section>
-        <div aria-hidden="true">📦</div>
-        <h2>No lost or found reports yet.</h2>
-        <p>Be the first to report a lost or found item!</p>
-        <Link to="/post">Post an Item</Link>
-      </section>
-    );
-  }
+  const normalizedSearch = searchTerm.trim().toLowerCase();
 
   const filteredItems = items.filter((item) => {
-    const searchText = searchTerm.toLowerCase();
+    const title = item.title?.toLowerCase() || "";
+    const description = item.description?.toLowerCase() || "";
+    const category = item.category?.toLowerCase() || "";
+    const building = item.building?.toLowerCase() || "";
+    const location = item.location?.toLowerCase() || "";
 
     const matchesSearch =
-      item.title?.toLowerCase().includes(searchText) ||
-      item.description?.toLowerCase().includes(searchText) ||
-      item.category?.toLowerCase().includes(searchText) ||
-      item.building?.toLowerCase().includes(searchText) ||
-      item.location?.toLowerCase().includes(searchText);
+      normalizedSearch === "" ||
+      title.includes(normalizedSearch) ||
+      description.includes(normalizedSearch) ||
+      category.includes(normalizedSearch) ||
+      building.includes(normalizedSearch) ||
+      location.includes(normalizedSearch);
 
     const matchesType =
       typeFilter === "all" || item.type === typeFilter;
 
     const matchesCategory =
-      categoryFilter === "all" || item.category === categoryFilter;
+      categoryFilter === "all" ||
+      item.category === categoryFilter;
 
     return matchesSearch && matchesType && matchesCategory;
   });
 
   const sortedItems = [...filteredItems].sort((itemA, itemB) => {
-  const timeA = itemA.createdAt?.toDate
-    ? itemA.createdAt.toDate().getTime()
-    : 0;
+    const timeA = getCreatedTime(itemA);
+    const timeB = getCreatedTime(itemB);
 
-  const timeB = itemB.createdAt?.toDate
-    ? itemB.createdAt.toDate().getTime()
-    : 0;
+    if (sortOrder === "oldest") {
+      return timeA - timeB;
+    }
 
-  return sortOrder === "newest"
-    ? timeB - timeA
-    : timeA - timeB;
+    return timeB - timeA;
   });
-  
-  let noResultsMessage = "No matching items found.";
 
-  if (typeFilter === "lost") {
-    noResultsMessage = "No lost items match your search.";
-  } else if (typeFilter === "found") {
-    noResultsMessage = "No found items match your search.";
+  if (isLoading) {
+    return (
+      <section className="flex flex-col items-center justify-center py-20">
+        <div className="h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-red-600" />
+
+        <p className="mt-4 text-slate-600">
+          Fetching campus reports...
+        </p>
+      </section>
+    );
+  }
+
+  if (errorMessage) {
+    return (
+      <div className="rounded-2xl border border-red-200 bg-red-50 p-5 text-red-700">
+        {errorMessage}
+      </div>
+    );
+  }
+
+  if (items.length === 0) {
+    return (
+      <section className="rounded-3xl border border-slate-200 bg-white p-10 text-center shadow-sm">
+        <div className="text-4xl" aria-hidden="true">
+          📦
+        </div>
+
+        <h1 className="mt-4 text-2xl font-bold text-slate-900">
+          No lost or found reports yet
+        </h1>
+
+        <p className="mt-2 text-slate-600">
+          Be the first person to report a lost or found item.
+        </p>
+
+        <Link
+          to="/post"
+          className="mt-6 inline-block rounded-xl bg-red-600 px-5 py-3 font-semibold text-white transition hover:bg-red-700"
+        >
+          Post an Item
+        </Link>
+      </section>
+    );
   }
 
   return (
-    <section className="rounded-3xl border border-slate-200 bg-white shadow-sm sm:p-8">
-      <h2 className="text-xl font-medium">Reported Items</h2>
+    <section>
+      {/* Page heading */}
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">
+          Browse Reported Items
+        </h1>
 
-    <div className="ml--10 grid grid-cols-[300px_1fr] gap-6 items-start">
-      <div className="flex flex-col gap-4">
-        <div>
-          <label htmlFor="item-search" className="mt-5 block text-sm font-medium text-slate-700">Search items</label>
-          <input
-            className="mt-3 text-sm resize-none w-auto rounded-xl px-2 py-2 border border-slate-200 outline-none transition placeholder:text-slate-400 focus:border-red-500 focus:ring-4 focus:ring-red-50"
-            id="item-search"
-            type="search"
-            placeholder="Search by title, category, building, or description"
-            value={searchTerm}
-            onChange={(event) => setSearchTerm(event.target.value)}
-          />
-        </div>
-
-        <div className="flex items-center gap-4">
-          <label htmlFor="type-filter" className="flex items-center gap-2 text-sm font-medium text-slate-700">Filter by type
-          <select
-          className="w-auto rounded-xl px-2 py-2 border border-slate-200 outline-none transition placeholder:text-slate-400 focus:border-red-500 focus:ring-4 focus:ring-red-50"
-          id="type-filter"
-          value={typeFilter}
-          onChange={(event) => setTypeFilter(event.target.value)}
-          >
-          <option value="all">All items</option>
-          <option value="lost">Lost items</option>
-          <option value="found">Found items</option>
-          </select>
-          </label>
-        </div>
-
-        <div className="flex items-center gap-4">
-          <label htmlFor="category-filter" className="flex items-center gap-2 text-sm font-medium text-slate-700">Filter by category
-          <select
-            className="w-auto rounded-xl px-2 py-2 border border-slate-200 outline-none transition placeholder:text-slate-400 focus:border-red-500 focus:ring-4 focus:ring-red-50"
-            id="category-filter"
-            value={categoryFilter}
-            onChange={(event) => setCategoryFilter(event.target.value)}
-          >
-            <option value="all">All categories</option>
-            {ITEM_CATEGORIES.map((category) => (
-              <option key={category} value={category}>
-                {category}
-              </option>
-            ))}
-          </select>
-          </label>
-        </div>
-
-        <div>
-        <label htmlFor="sort-order" className="flex items-center gap-2 text-sm font-medium text-slate-700">Sort items
-        <select
-          className="w-auto rounded-xl px-2 py-2 border border-slate-200 outline-none transition placeholder:text-slate-400 focus:border-red-500 focus:ring-4 focus:ring-red-50"
-          id="sort-order"
-          value={sortOrder}
-          onChange={(event) => setSortOrder(event.target.value)}
-        >
-          <option value="newest">Newest first</option>
-          <option value="oldest">Oldest first</option>
-        </select>
-        </label>
-        </div>
+        <p className="mt-2 text-slate-600">
+          Search for lost and found items reported around campus.
+        </p>
       </div>
 
-      <div>
-        {filteredItems.length === 0 && (
-          <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 px-6 py-12 text-center">
-            <div className="text-3xl" aria-hidden="true">
-              🔍
-            </div>
+      {/* Search box */}
+      <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <label htmlFor="item-search" className="sr-only">
+          Search items
+        </label>
 
-            <h3 className="mt-3 text-lg font-semibold text-slate-900">
-              {noResultsMessage}
-            </h3>
+        <input
+          id="item-search"
+          type="search"
+          placeholder="Search by item name, category, building, or description..."
+          value={searchTerm}
+          onChange={(event) => setSearchTerm(event.target.value)}
+          className="w-full rounded-xl border border-slate-300 px-4 py-3 text-base outline-none transition placeholder:text-slate-400 focus:border-red-500 focus:ring-4 focus:ring-red-100"
+        />
+      </div>
 
-            <p className="mt-2 max-w-md text-sm text-slate-600">
-              Try checking your spelling, using a different keyword, or changing your
-              filters.
+      {/* Listings and right sidebar */}
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_280px] lg:items-start">
+        {/* Item listings */}
+        <div className="order-2 min-w-0 lg:order-1">
+          <div className="mb-4 flex items-center justify-between gap-4">
+            <h2 className="text-xl font-semibold text-slate-900">
+              Reported Items
+            </h2>
+
+            <p className="text-sm text-slate-500">
+              {sortedItems.length}{" "}
+              {sortedItems.length === 1 ? "item" : "items"}
             </p>
+          </div>
+
+          {sortedItems.length === 0 ? (
+            <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-16 text-center">
+              <div className="text-4xl" aria-hidden="true">
+                🔍
+              </div>
+
+              <h3 className="mt-4 text-lg font-semibold text-slate-900">
+                No matching items found
+              </h3>
+
+              <p className="mt-2 max-w-md text-sm text-slate-600">
+                Try another search word or change the selected filters.
+              </p>
+
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="mt-5 rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-red-300 hover:text-red-600"
+              >
+                Clear search and filters
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
+              {sortedItems.map((item) => (
+                <Link
+                  key={item.id}
+                  to={`/items/${item.id}`}
+                  aria-label={`View item: ${item.title}`}
+                  className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:border-red-300 hover:shadow-lg focus:outline-none focus:ring-4 focus:ring-red-100"
+                >
+                  {/* Item picture */}
+                  <div className="relative aspect-[4/3] overflow-hidden bg-slate-100">
+                    <div className="absolute inset-0 flex items-center justify-center text-sm text-slate-400">
+                      No image available
+                    </div>
+
+                    {item.imageUrl && (
+                      <img
+                        src={item.imageUrl}
+                        alt={item.title || "Reported item"}
+                        referrerPolicy="no-referrer"
+                        className="relative z-10 h-full w-full object-cover transition duration-300 group-hover:scale-105"
+                        onError={(event) => {
+                          event.currentTarget.style.display = "none";
+                        }}
+                      />
+                    )}
+                  </div>
+
+                  {/* Item name */}
+                  <div className="p-4">
+                    <h3 className="truncate text-base font-semibold text-slate-900 transition group-hover:text-red-600">
+                      {item.title || "Untitled item"}
+                    </h3>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Right filter sidebar */}
+        <aside className="order-1 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm lg:order-2 lg:sticky lg:top-24">
+          <div className="mb-5 flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-slate-900">
+              Filters
+            </h2>
 
             <button
               type="button"
-              onClick={() => {
-                setSearchTerm("");
-                setTypeFilter("all");
-                setCategoryFilter("all");
-                setSortOrder("newest");
-              }}
-              className="mt-5 rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-red-300 hover:text-red-600"
+              onClick={clearFilters}
+              className="text-sm font-medium text-red-600 transition hover:text-red-700"
             >
-              Clear search and filters
+              Clear
             </button>
           </div>
-        )}
-        <div className="grid grid-cols-4 gap-4">
-          {sortedItems.map((item) => {
-            const isOwner = currentUser?.uid === item.ownerId;
 
-            return (
-              <article
-                key={item.id}
-                className="relative flex cursor-pointer flex-col rounded-2xl border border-slate-200 p-4 transition hover:-translate-y-1 hover:border-red-300 hover:shadow-md"
+          <div className="space-y-5">
+            {/* Type filter */}
+            <div>
+              <label
+                htmlFor="type-filter"
+                className="mb-2 block text-sm font-medium text-slate-700"
               >
-                <Link
-                  to={`/items/${item.id}`}
-                  aria-label={`View report: ${item.title}`}
-                  className="absolute inset-0 rounded-2xl focus:outline-none focus:ring-4 focus:ring-red-100"
-                />
-                {isOwner && (
-                  <div className="absolute right-3 top-3 z-20">
-                    <ReportActionsMenu
-                      item={item}
-                      onResolved={(resolvedItemId) => {
-                        setItems((currentItems) =>
-                          currentItems.map((currentItem) =>
-                            currentItem.id === resolvedItemId
-                              ? {
-                                  ...currentItem,
-                                  status: "resolved",
-                                }
-                              : currentItem
-                          )
-                        );
-                      }}
-                      onDeleted={(deletedItemId) => {
-                        setItems((currentItems) =>
-                          currentItems.filter(
-                            (currentItem) =>
-                              currentItem.id !== deletedItemId
-                          )
-                        );
-                      }}
-                    />
-                  </div>
-                )}
-                {item.imageUrl && (
-                  <div className="mb-3 flex justify-center rounded-xl bg-slate-50 p-2">
-                    <img
-                      src={item.imageUrl}
-                      alt={item.title}
-                      className="h-28 object-contain"
-                      referrerPolicy="no-referrer"
-                      onError={(event) => {
-                        event.currentTarget.parentElement.style.display =
-                          "none";
-                      }}
-                    />
-                  </div>
-                )}
+                Item type
+              </label>
 
-                <h3 className="font-semibold text-slate-900">
-                  {item.title}
-                </h3>
+              <select
+                id="type-filter"
+                value={typeFilter}
+                onChange={(event) => setTypeFilter(event.target.value)}
+                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm outline-none transition focus:border-red-500 focus:ring-4 focus:ring-red-100"
+              >
+                <option value="all">All items</option>
+                <option value="lost">Lost items</option>
+                <option value="found">Found items</option>
+              </select>
+            </div>
 
-                <p className="mt-1 text-sm text-slate-600">
-                  {item.description}
-                </p>
+            {/* Category filter */}
+            <div>
+              <label
+                htmlFor="category-filter"
+                className="mb-2 block text-sm font-medium text-slate-700"
+              >
+                Category
+              </label>
 
-                <div className="mt-3 space-y-1 text-sm text-slate-600">
-                  <p>Type: {item.type}</p>
-                  <p>Category: {item.category}</p>
-                  <p>Building: {item.building}</p>
-                  <p>Location: {item.location}</p>
-                  <p>Status: {item.status}</p>
+              <select
+                id="category-filter"
+                value={categoryFilter}
+                onChange={(event) =>
+                  setCategoryFilter(event.target.value)
+                }
+                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm outline-none transition focus:border-red-500 focus:ring-4 focus:ring-red-100"
+              >
+                <option value="all">All categories</option>
 
-                  <p>
-                    Reported:{" "}
-                    {item.createdAt?.toDate
-                      ? item.createdAt.toDate().toLocaleDateString()
-                      : "Date unavailable"}
-                  </p>
-                </div>
-              </article>
-            );
-          })}
-        </div>
+                {ITEM_CATEGORIES.map((category) => (
+                  <option key={category} value={category}>
+                    {category}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Sort filter */}
+            <div>
+              <label
+                htmlFor="sort-order"
+                className="mb-2 block text-sm font-medium text-slate-700"
+              >
+                Sort by
+              </label>
+
+              <select
+                id="sort-order"
+                value={sortOrder}
+                onChange={(event) => setSortOrder(event.target.value)}
+                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm outline-none transition focus:border-red-500 focus:ring-4 focus:ring-red-100"
+              >
+                <option value="newest">Newest first</option>
+                <option value="oldest">Oldest first</option>
+              </select>
+            </div>
+          </div>
+        </aside>
       </div>
-    </div>
     </section>
   );
 }
