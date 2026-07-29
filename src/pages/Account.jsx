@@ -322,9 +322,12 @@ function Account() {
             )}
 
             {isEditing ? (
-                <form onSubmit={handleSaveProfile} className="mt-6 max-w-xl">
+                <form onSubmit={handleSaveProfile} className="justify-center rounded-3xl bg-white border border-slate-200 p-6 shadow-sm sm:p-8 mt-6 max-w-xl">
+                    <label className="font-semibold text-lg">
+                        Make changes to your account.
+                    </label>
                     <div className="grid gap-5 sm:grid-cols-2">
-                        <label className="text-sm font-medium">
+                        <label className="text-sm font-medium pt-5">
                             First name
                             <input
                                 type="text"
@@ -335,7 +338,7 @@ function Account() {
                             />
                         </label>
 
-                        <label className="text-sm font-medium">
+                        <label className="text-sm font-medium pt-5">
                             Last name
                             <input
                                 type="text"
@@ -383,7 +386,7 @@ function Account() {
                         <button
                             type="submit"
                             disabled={isSaving}
-                            className="rounded-xl bg-red-600 px-5 py-2.5 font-semibold text-white disabled:opacity-60"
+                            className="border border-transparent rounded-xl bg-[#A6192E] px-5 py-2.5 font-semibold text-white disabled:opacity-60 transition hover:bg-white hover:text-[#A6192E] hover:border-[#A6192E]"
                         >
                             {isSaving ? "Saving..." : "Save Changes"}
                         </button>
