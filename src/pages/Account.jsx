@@ -304,7 +304,7 @@ function Account() {
     }
 
     return (
-        <main className="mx-auto max-w-5xl py-12">
+        <main className="pt-3 mx-auto max-w-5xl py-12">
             <h1 className="text-3xl font-bold">
                 My Account
             </h1>
@@ -322,9 +322,12 @@ function Account() {
             )}
 
             {isEditing ? (
-                <form onSubmit={handleSaveProfile} className="mt-6 max-w-xl">
+                <form onSubmit={handleSaveProfile} className="justify-center rounded-3xl bg-white border border-slate-200 p-6 shadow-sm sm:p-8 mt-6 max-w-xl">
+                    <label className="font-semibold text-lg">
+                        Make changes to your account.
+                    </label>
                     <div className="grid gap-5 sm:grid-cols-2">
-                        <label className="text-sm font-medium">
+                        <label className="text-sm font-medium pt-5">
                             First name
                             <input
                                 type="text"
@@ -335,7 +338,7 @@ function Account() {
                             />
                         </label>
 
-                        <label className="text-sm font-medium">
+                        <label className="text-sm font-medium pt-5">
                             Last name
                             <input
                                 type="text"
@@ -383,7 +386,7 @@ function Account() {
                         <button
                             type="submit"
                             disabled={isSaving}
-                            className="rounded-xl bg-red-600 px-5 py-2.5 font-semibold text-white disabled:opacity-60"
+                            className="border border-transparent rounded-xl bg-[#A6192E] px-5 py-2.5 font-semibold text-white disabled:opacity-60 transition hover:bg-white hover:text-[#A6192E] hover:border-[#A6192E]"
                         >
                             {isSaving ? "Saving..." : "Save Changes"}
                         </button>
@@ -392,7 +395,7 @@ function Account() {
                             type="button"
                             onClick={handleCancelEdit}
                             disabled={isSaving}
-                            className="rounded-xl border border-slate-300 px-5 py-2.5 font-semibold"
+                            className="rounded-xl border border-slate-300 px-5 py-2.5 font-semibold transition hover:bg-slate-100"
                         >
                             Cancel
                         </button>
@@ -400,14 +403,15 @@ function Account() {
                 </form>
             ) : (
                 <section className="mt-6 max-w-xl">
-                    <p className="text-lg text-slate-700">
-                        Welcome,{" "}
+                    <p className="mb-6 text-lg text-slate-700">
+                        Welcome back,{" "}
                         <span className="font-semibold text-slate-900">
-                            {profile.firstName} {profile.lastName}
+                            {profile.firstName}
                         </span>
+                        !
                     </p>
 
-                    <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                    <div className="pl-7 py-6 mt-5 rounded-2xl border border-slate-200 bg-white shadow-sm">
                         <h2 className="text-lg font-semibold text-slate-900">
                             Profile Information
                         </h2>
@@ -460,7 +464,7 @@ function Account() {
                             setSuccessMessage("");
                             setIsEditing(true);
                         }}
-                        className="mt-5 rounded-xl bg-red-600 px-5 py-2.5 font-semibold text-white"
+                        className="mt-7 rounded-xl bg-[#A6192E] px-7 py-2.5 font-semibold text-white border border-transparent transition hover:bg-white hover:text-[#A6192E] hover:border-[#A6192E]"
                     >
                         Edit Profile
                     </button>
@@ -526,7 +530,7 @@ function Account() {
                 </div>
             )}
 
-            <h2 className="mt-10 text-2xl font-semibold">
+            <h2 className="mt-7 text-2xl font-semibold">
                 My Reports
             </h2>
 
