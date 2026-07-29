@@ -8,6 +8,7 @@ import {
     where,
     updateDoc,
     deleteDoc,
+    setDoc,
     serverTimestamp,
 } from "firebase/firestore";
 
@@ -26,7 +27,6 @@ export async function createItem(itemData) {
         status: "open",
         imageUrl: itemData.imageUrl || "",
         ownerId: itemData.ownerId,
-        ownerEmail: itemData.ownerEmail,
         dateReported: itemData.dateReported,
         createdAt: serverTimestamp(),
     };
@@ -140,4 +140,161 @@ export async function getItemsByOwner(ownerId) {
         id: itemDoc.id,
         ...itemDoc.data(),
     }));
+}
+
+export async function createClaim(claimData) {
+    if (!claimData.itemId) {
+        throw new Error("An item ID is required.");
+    }
+
+    if (!claimData.ownerId) {
+        throw new Error("The report owner is required.");
+    }
+
+    if (!claimData.claimantId) {
+        throw new Error("You must be logged in to submit a request.");
+    }
+
+    if (claimData.ownerId === claimData.claimantId) {
+        throw new Error("You cannot submit a request for your own report.");
+    }
+
+    const trimmedMessage = claimData.message?.trim();
+
+    if (!trimmedMessage) {
+        throw new Error(
+            "Please explain why you believe this item belongs to you or what you found."
+        );
+    }
+
+    const claimsRef = collection(db, "claims");
+
+    const claimantQuery = query(
+        claimsRef,
+        where("claimantId", "==", claimData.claimantId)
+    );
+
+    const claimantClaimsSnapshot = await getDocs(claimantQuery);
+
+    const existingClaim = claimantClaimsSnapshot.docs.find(
+        (claimDoc) =>
+            claimDoc.data().itemId === claimData.itemId
+    );
+
+    if (existingClaim) {
+        throw new Error(
+            "You have already submitted a request for this report."
+        );
+    }
+
+    const claimId = `${claimData.itemId}_${claimData.claimantId}`;
+    const claimRef = doc(db, "claims", claimId);
+
+    const newClaim = {
+        itemId: claimData.itemId,
+        itemTitle: claimData.itemTitle,
+        itemType: claimData.itemType,
+        requestType: claimData.requestType,
+
+        ownerId: claimData.ownerId,
+
+        claimantId: claimData.claimantId,
+        claimantFirstName: claimData.claimantFirstName,
+        claimantEmail: claimData.claimantEmail,
+        claimantContact: claimData.claimantContact,
+
+        message: trimmedMessage,
+        status: "pending",
+
+        ownerContact: null,
+
+        createdAt: serverTimestamp(),
+        respondedAt: null,
+    };
+
+    await setDoc(claimRef, newClaim);
+
+    return claimId;
+}
+
+export async function getClaimsByOwner(ownerId) {
+    if (!ownerId) {
+        throw new Error("An owner ID is required.");
+    }
+
+    const claimsRef = collection(db, "claims");
+    const ownerQuery = query(
+        claimsRef,
+        where("ownerId", "==", ownerId)
+    );
+
+    const querySnapshot = await getDocs(ownerQuery);
+
+    return querySnapshot.docs.map((claimDoc) => ({
+        id: claimDoc.id,
+        ...claimDoc.data(),
+    }));
+}
+
+export async function getClaimsByClaimant(claimantId) {
+    if (!claimantId) {
+        throw new Error("A claimant ID is required.");
+    }
+
+    const claimsRef = collection(db, "claims");
+    const claimantQuery = query(
+        claimsRef,
+        where("claimantId", "==", claimantId)
+    );
+
+    const querySnapshot = await getDocs(claimantQuery);
+
+    return querySnapshot.docs.map((claimDoc) => ({
+        id: claimDoc.id,
+        ...claimDoc.data(),
+    }));
+}
+
+export async function updateClaimStatus(
+    claimId,
+    status,
+    ownerContact = null
+) {
+    if (!claimId) {
+        throw new Error("A claim ID is required.");
+    }
+
+    if (status !== "accepted" && status !== "rejected") {
+        throw new Error(
+            'Claim status must be either "accepted" or "rejected".'
+        );
+    }
+
+    if (status === "accepted" && !ownerContact) {
+        throw new Error(
+            "Contact information is required when accepting a request."
+        );
+    }
+
+    const claimRef = doc(db, "claims", claimId);
+
+    await updateDoc(claimRef, {
+        status,
+        ownerContact:
+            status === "accepted" ? ownerContact : null,
+        respondedAt: serverTimestamp(),
+    });
+}
+
+export async function markItemResolved(itemId) {
+    if (!itemId) {
+        throw new Error("An item ID is required.");
+    }
+
+    const itemRef = doc(db, "items", itemId);
+
+    await updateDoc(itemRef, {
+        status: "resolved",
+        resolvedAt: serverTimestamp(),
+    });
 }
