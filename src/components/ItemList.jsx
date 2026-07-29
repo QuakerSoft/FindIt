@@ -2,6 +2,9 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { getAllItems } from "../firebase/firestore";
 import { ITEM_CATEGORIES } from "../constants/categories";
+import { onAuthStateChanged } from "firebase/auth";
+import { auth } from "../firebase/config";
+import ReportActionsMenu from "./ReportActionsMenu";
 
 function ItemList() {
   const [items, setItems] = useState([]);
@@ -12,6 +15,18 @@ function ItemList() {
   const [typeFilter, setTypeFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [sortOrder, setSortOrder] = useState("newest");
+  const [currentUser, setCurrentUser] = useState(null);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(
+      auth,
+      (user) => {
+        setCurrentUser(user);
+      }
+    );
+
+    return unsubscribe;
+  }, []);
 
   useEffect(() => {
     async function loadItems() {
@@ -195,40 +210,80 @@ function ItemList() {
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
-              {sortedItems.map((item) => (
-                <Link
-                  key={item.id}
-                  to={`/items/${item.id}`}
-                  aria-label={`View item: ${item.title}`}
-                  className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:border-red-300 hover:shadow-lg focus:outline-none focus:ring-4 focus:ring-red-100"
-                >
-                  {/* Item picture */}
-                  <div className="relative aspect-[4/3] overflow-hidden bg-slate-100">
-                    <div className="absolute inset-0 flex items-center justify-center text-sm text-slate-400">
-                      No image available
+              {sortedItems.map((item) => {
+                const isOwner =
+                  currentUser?.uid === item.ownerId;
+
+                return (
+                  <article
+                    key={item.id}
+                    className="group relative rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:z-40 hover:-translate-y-1 hover:border-red-300 hover:shadow-lg focus-within:z-40"
+                  >
+                    <Link
+                      to={`/items/${item.id}`}
+                      aria-label={`View item: ${item.title}`}
+                      className="absolute inset-0 z-10 rounded-2xl focus:outline-none focus:ring-4 focus:ring-red-100"
+                    />
+
+                    {isOwner && (
+                      <div className="absolute right-3 top-3 z-30">
+                        <ReportActionsMenu
+                          item={item}
+                          onResolved={(resolvedItemId) => {
+                            setItems((currentItems) =>
+                              currentItems.map((currentItem) =>
+                                currentItem.id ===
+                                resolvedItemId
+                                  ? {
+                                      ...currentItem,
+                                      status: "resolved",
+                                    }
+                                  : currentItem
+                              )
+                            );
+                          }}
+                          onDeleted={(deletedItemId) => {
+                            setItems((currentItems) =>
+                              currentItems.filter(
+                                (currentItem) =>
+                                  currentItem.id !==
+                                  deletedItemId
+                              )
+                            );
+                          }}
+                        />
+                      </div>
+                    )}
+
+                    {/* Item picture */}
+                    <div className="relative aspect-[4/3] overflow-hidden rounded-t-2xl bg-slate-100">
+                      <div className="absolute inset-0 flex items-center justify-center text-sm text-slate-400">
+                        No image available
+                      </div>
+
+                      {item.imageUrl && (
+                        <img
+                          src={item.imageUrl}
+                          alt={item.title || "Reported item"}
+                          referrerPolicy="no-referrer"
+                          className="relative z-[1] h-full w-full object-cover transition duration-300 group-hover:scale-105"
+                          onError={(event) => {
+                            event.currentTarget.style.display =
+                              "none";
+                          }}
+                        />
+                      )}
                     </div>
 
-                    {item.imageUrl && (
-                      <img
-                        src={item.imageUrl}
-                        alt={item.title || "Reported item"}
-                        referrerPolicy="no-referrer"
-                        className="relative z-10 h-full w-full object-cover transition duration-300 group-hover:scale-105"
-                        onError={(event) => {
-                          event.currentTarget.style.display = "none";
-                        }}
-                      />
-                    )}
-                  </div>
-
-                  {/* Item name */}
-                  <div className="p-4">
-                    <h3 className="truncate text-base font-semibold text-slate-900 transition group-hover:text-red-600">
-                      {item.title || "Untitled item"}
-                    </h3>
-                  </div>
-                </Link>
-              ))}
+                    {/* Item name */}
+                    <div className="p-4">
+                      <h3 className="truncate text-base font-semibold text-slate-900 transition group-hover:text-red-600">
+                        {item.title || "Untitled item"}
+                      </h3>
+                    </div>
+                  </article>
+                );
+              })}
             </div>
           )}
         </div>
