@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, } from "react-router-dom";
 import { createClaim, getItemById, getUserProfile, } from "../firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "../firebase/config";
+import ReportActionsMenu from "../components/ReportActionsMenu";
 
 function ItemDetails() {
   const { itemId } = useParams();
+  const navigate = useNavigate();
 
   const [item, setItem] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -227,7 +229,24 @@ function ItemDetails() {
         ← Back to Browse
       </Link>
 
-      <article className="mt-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+      <article className="relative mt-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+
+        {isOwner && (
+          <div className="absolute right-6 top-6 z-20">
+            <ReportActionsMenu
+              item={item}
+              onResolved={() => {
+                setItem((currentItem) => ({
+                  ...currentItem,
+                  status: "resolved",
+                }));
+              }}
+              onDeleted={() => {
+                navigate("/browse");
+              }}
+            />
+          </div>
+        )}
         <p className="text-sm font-semibold uppercase tracking-wide text-red-600">
           {item.type} item
         </p>
@@ -409,16 +428,6 @@ function ItemDetails() {
                 )}
               </>
             )}
-          </div>
-        )}
-        {isOwner && (
-          <div className="mt-6 border-t border-slate-200 pt-5">
-            <Link
-              to={`/items/${item.id}/edit`}
-              className="inline-block rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700"
-            >
-              Edit Report
-            </Link>
           </div>
         )}
       </article>

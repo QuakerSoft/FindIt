@@ -4,6 +4,7 @@ import { getAllItems } from "../firebase/firestore";
 import { ITEM_CATEGORIES } from "../constants/categories";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "../firebase/config";
+import ReportActionsMenu from "./ReportActionsMenu";
 
 function ItemList() {
   const [items, setItems] = useState([]);
@@ -214,6 +215,33 @@ function ItemList() {
                   aria-label={`View report: ${item.title}`}
                   className="absolute inset-0 rounded-2xl focus:outline-none focus:ring-4 focus:ring-red-100"
                 />
+                {isOwner && (
+                  <div className="absolute right-3 top-3 z-20">
+                    <ReportActionsMenu
+                      item={item}
+                      onResolved={(resolvedItemId) => {
+                        setItems((currentItems) =>
+                          currentItems.map((currentItem) =>
+                            currentItem.id === resolvedItemId
+                              ? {
+                                  ...currentItem,
+                                  status: "resolved",
+                                }
+                              : currentItem
+                          )
+                        );
+                      }}
+                      onDeleted={(deletedItemId) => {
+                        setItems((currentItems) =>
+                          currentItems.filter(
+                            (currentItem) =>
+                              currentItem.id !== deletedItemId
+                          )
+                        );
+                      }}
+                    />
+                  </div>
+                )}
                 {item.imageUrl && (
                   <div className="mb-3 flex justify-center rounded-xl bg-slate-50 p-2">
                     <img
@@ -251,17 +279,6 @@ function ItemList() {
                       : "Date unavailable"}
                   </p>
                 </div>
-
-                {isOwner && (
-                  <div className="relative z-10 mt-auto pt-5">
-                    <Link
-                      to={`/items/${item.id}/edit`}
-                      className="inline-block rounded-xl border border-blue-300 bg-white px-3 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-50"
-                    >
-                      Edit Report
-                    </Link>
-                  </div>
-                )}
               </article>
             );
           })}
