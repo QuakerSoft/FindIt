@@ -1,174 +1,347 @@
 import {
-  collection,
-  addDoc,
-  getDocs,
-  getDoc,
-  doc,
-  query,
-  where,
-  updateDoc,
-  deleteDoc,
-  setDoc,
-  serverTimestamp,
+    collection,
+    addDoc,
+    getDocs,
+    getDoc,
+    doc,
+    query,
+    where,
+    updateDoc,
+    deleteDoc,
+    setDoc,
+    serverTimestamp,
 } from "firebase/firestore";
 
 import { db } from "./config";
 
 export async function createItem(itemData) {
-  const itemsRef = collection(db, "items");
+    const itemsRef = collection(db, "items");
 
-  const newItem = {
-    title: itemData.title,
-    description: itemData.description,
-    category: itemData.category,
-    building: itemData.building,
-    location: itemData.location,
-    type: itemData.type,
-    status: "open",
-    imageUrl: itemData.imageUrl || "",
-    ownerId: itemData.ownerId,
-    ownerEmail: itemData.ownerEmail,
-    dateReported: itemData.dateReported,
-    createdAt: serverTimestamp(),
-  };
+    const newItem = {
+        title: itemData.title,
+        description: itemData.description,
+        category: itemData.category,
+        building: itemData.building,
+        location: itemData.location,
+        type: itemData.type,
+        status: "open",
+        imageUrl: itemData.imageUrl || "",
+        ownerId: itemData.ownerId,
+        ownerEmail: itemData.ownerEmail,
+        dateReported: itemData.dateReported,
+        createdAt: serverTimestamp(),
+    };
 
-  const documentReference = await addDoc(itemsRef, newItem);
+    const documentReference = await addDoc(itemsRef, newItem);
 
-  return documentReference.id;
+    return documentReference.id;
 }
 
 export async function getAllItems() {
-  const itemsRef = collection(db, "items");
-  const querySnapshot = await getDocs(itemsRef);
+    const itemsRef = collection(db, "items");
+    const querySnapshot = await getDocs(itemsRef);
 
-  return querySnapshot.docs.map((itemDoc) => ({
-    id: itemDoc.id,
-    ...itemDoc.data(),
-  }));
+    return querySnapshot.docs.map((itemDoc) => ({
+        id: itemDoc.id,
+        ...itemDoc.data(),
+    }));
 }
 
 export async function getItemsByType(type) {
-  if (type !== "lost" && type !== "found") {
-    throw new Error('Item type must be either "lost" or "found".');
-  }
+    if (type !== "lost" && type !== "found") {
+        throw new Error('Item type must be either "lost" or "found".');
+    }
 
-  const itemsRef = collection(db, "items");
-  const itemsQuery = query(itemsRef, where("type", "==", type));
-  const querySnapshot = await getDocs(itemsQuery);
+    const itemsRef = collection(db, "items");
+    const itemsQuery = query(
+        itemsRef,
+        where("type", "==", type)
+    );
 
-  return querySnapshot.docs.map((itemDoc) => ({
-    id: itemDoc.id,
-    ...itemDoc.data(),
-  }));
+    const querySnapshot = await getDocs(itemsQuery);
+
+    return querySnapshot.docs.map((itemDoc) => ({
+        id: itemDoc.id,
+        ...itemDoc.data(),
+    }));
 }
 
 export async function getItemById(id) {
-  const itemRef = doc(db, "items", id);
-  const itemSnapshot = await getDoc(itemRef);
+    if (!id) {
+        throw new Error("An item ID is required.");
+    }
 
-  if (!itemSnapshot.exists()) {
-    return null;
-  }
+    const itemRef = doc(db, "items", id);
+    const itemSnapshot = await getDoc(itemRef);
 
-  return {
-    id: itemSnapshot.id,
-    ...itemSnapshot.data(),
-  };
+    if (!itemSnapshot.exists()) {
+        return null;
+    }
+
+    return {
+        id: itemSnapshot.id,
+        ...itemSnapshot.data(),
+    };
 }
 
 export async function updateItem(id, updateData) {
-  const itemRef = doc(db, "items", id);
+    if (!id) {
+        throw new Error("An item ID is required.");
+    }
 
-  await updateDoc(itemRef, updateData);
+    const itemRef = doc(db, "items", id);
+
+    await updateDoc(itemRef, updateData);
 }
 
 export async function deleteItem(id) {
-  const itemRef = doc(db, "items", id);
+    if (!id) {
+        throw new Error("An item ID is required.");
+    }
 
-  await deleteDoc(itemRef);
+    const itemRef = doc(db, "items", id);
+
+    await deleteDoc(itemRef);
 }
 
 export async function createReport(reportData) {
-  const reportId = `${reportData.itemId}_${reportData.reporterId}`;
-  const reportRef = doc(db, "reports", reportId);
-  const existingReport = await getDoc(reportRef);
+    if (!reportData.itemId) {
+        throw new Error("An item ID is required.");
+    }
 
-  if (existingReport.exists()) {
-    throw new Error("ALREADY_REPORTED");
-  }
+    if (!reportData.reporterId) {
+        throw new Error("You must be logged in to report an item.");
+    }
 
-  await setDoc(reportRef, {
-    itemId: reportData.itemId,
-    itemTitle: reportData.itemTitle,
-    itemOwnerId: reportData.itemOwnerId,
-    reporterId: reportData.reporterId,
-    reporterEmail: reportData.reporterEmail,
-    reason: reportData.reason,
-    details: reportData.details || "",
-    status: "pending",
-    createdAt: serverTimestamp(),
-  });
+    const reportId = `${reportData.itemId}_${reportData.reporterId}`;
+    const reportRef = doc(db, "reports", reportId);
+    const existingReport = await getDoc(reportRef);
+
+    if (existingReport.exists()) {
+        throw new Error("ALREADY_REPORTED");
+    }
+
+    await setDoc(reportRef, {
+        itemId: reportData.itemId,
+        itemTitle: reportData.itemTitle,
+        itemOwnerId: reportData.itemOwnerId,
+        reporterId: reportData.reporterId,
+        reporterEmail: reportData.reporterEmail,
+        reason: reportData.reason,
+        details: reportData.details || "",
+        status: "pending",
+        createdAt: serverTimestamp(),
+    });
+
+    return reportId;
 }
 
 export async function getUserProfile(userId) {
-  if (!userId) {
-    throw new Error("A user ID is required to load a profile.");
-  }
+    if (!userId) {
+        throw new Error("A user ID is required to load a profile.");
+    }
 
-  const userRef = doc(db, "users", userId);
-  const userSnapshot = await getDoc(userRef);
+    const userRef = doc(db, "users", userId);
+    const userSnapshot = await getDoc(userRef);
 
-  if (!userSnapshot.exists()) {
-    return null;
-  }
+    if (!userSnapshot.exists()) {
+        return null;
+    }
 
-  return {
-    id: userSnapshot.id,
-    ...userSnapshot.data(),
-  };
+    return {
+        id: userSnapshot.id,
+        ...userSnapshot.data(),
+    };
 }
 
 export async function updateUserProfile(userId, profileData) {
-  if (!userId) {
-    throw new Error("A user ID is required to update a profile.");
-  }
+    if (!userId) {
+        throw new Error("A user ID is required to update a profile.");
+    }
 
-  const userRef = doc(db, "users", userId);
+    const userRef = doc(db, "users", userId);
 
-  await updateDoc(userRef, {
-    firstName: profileData.firstName,
-    lastName: profileData.lastName,
-    phoneNumber: profileData.phoneNumber,
-    contactPreference: profileData.contactPreference,
-  });
+    await updateDoc(userRef, {
+        firstName: profileData.firstName,
+        lastName: profileData.lastName,
+        phoneNumber: profileData.phoneNumber,
+        contactPreference: profileData.contactPreference,
+    });
 }
 
 export async function getItemsByOwner(ownerId) {
-  if (!ownerId) {
-    throw new Error("A user ID is required to load reports.");
-  }
+    if (!ownerId) {
+        throw new Error("A user ID is required to load reports.");
+    }
 
-  const itemsRef = collection(db, "items");
-  const ownerQuery = query(
-    itemsRef,
-    where("ownerId", "==", ownerId)
-  );
+    const itemsRef = collection(db, "items");
+    const ownerQuery = query(
+        itemsRef,
+        where("ownerId", "==", ownerId)
+    );
 
-  const querySnapshot = await getDocs(ownerQuery);
+    const querySnapshot = await getDocs(ownerQuery);
 
-  return querySnapshot.docs.map((itemDoc) => ({
-    id: itemDoc.id,
-    ...itemDoc.data(),
-  }));
+    return querySnapshot.docs.map((itemDoc) => ({
+        id: itemDoc.id,
+        ...itemDoc.data(),
+    }));
 }
+
+export async function createClaim(claimData) {
+    if (!claimData.itemId) {
+        throw new Error("An item ID is required.");
+    }
+
+    if (!claimData.ownerId) {
+        throw new Error("The report owner is required.");
+    }
+
+    if (!claimData.claimantId) {
+        throw new Error("You must be logged in to submit a request.");
+    }
+
+    if (claimData.ownerId === claimData.claimantId) {
+        throw new Error(
+            "You cannot submit a request for your own report."
+        );
+    }
+
+    const trimmedMessage = claimData.message?.trim();
+
+    if (!trimmedMessage) {
+        throw new Error(
+            "Please explain why you believe this item belongs to you or what you found."
+        );
+    }
+
+    const claimsRef = collection(db, "claims");
+    const claimantQuery = query(
+        claimsRef,
+        where("claimantId", "==", claimData.claimantId)
+    );
+
+    const claimantClaimsSnapshot = await getDocs(claimantQuery);
+
+    const existingClaim = claimantClaimsSnapshot.docs.find(
+        (claimDoc) =>
+            claimDoc.data().itemId === claimData.itemId
+    );
+
+    if (existingClaim) {
+        throw new Error(
+            "You have already submitted a request for this report."
+        );
+    }
+
+    const claimId = `${claimData.itemId}_${claimData.claimantId}`;
+    const claimRef = doc(db, "claims", claimId);
+
+    const newClaim = {
+        itemId: claimData.itemId,
+        itemTitle: claimData.itemTitle,
+        itemType: claimData.itemType,
+        requestType: claimData.requestType,
+
+        ownerId: claimData.ownerId,
+
+        claimantId: claimData.claimantId,
+        claimantFirstName: claimData.claimantFirstName,
+        claimantEmail: claimData.claimantEmail,
+        claimantContact: claimData.claimantContact,
+
+        message: trimmedMessage,
+        status: "pending",
+
+        ownerContact: null,
+
+        createdAt: serverTimestamp(),
+        respondedAt: null,
+    };
+
+    await setDoc(claimRef, newClaim);
+
+    return claimId;
+}
+
+export async function getClaimsByOwner(ownerId) {
+    if (!ownerId) {
+        throw new Error("An owner ID is required.");
+    }
+
+    const claimsRef = collection(db, "claims");
+    const ownerQuery = query(
+        claimsRef,
+        where("ownerId", "==", ownerId)
+    );
+
+    const querySnapshot = await getDocs(ownerQuery);
+
+    return querySnapshot.docs.map((claimDoc) => ({
+        id: claimDoc.id,
+        ...claimDoc.data(),
+    }));
+}
+
+export async function getClaimsByClaimant(claimantId) {
+    if (!claimantId) {
+        throw new Error("A claimant ID is required.");
+    }
+
+    const claimsRef = collection(db, "claims");
+    const claimantQuery = query(
+        claimsRef,
+        where("claimantId", "==", claimantId)
+    );
+
+    const querySnapshot = await getDocs(claimantQuery);
+
+    return querySnapshot.docs.map((claimDoc) => ({
+        id: claimDoc.id,
+        ...claimDoc.data(),
+    }));
+}
+
+export async function updateClaimStatus(
+    claimId,
+    status,
+    ownerContact = null
+) {
+    if (!claimId) {
+        throw new Error("A claim ID is required.");
+    }
+
+    if (status !== "accepted" && status !== "rejected") {
+        throw new Error(
+            'Claim status must be either "accepted" or "rejected".'
+        );
+    }
+
+    if (status === "accepted" && !ownerContact) {
+        throw new Error(
+            "Contact information is required when accepting a request."
+        );
+    }
+
+    const claimRef = doc(db, "claims", claimId);
+
+    await updateDoc(claimRef, {
+        status,
+        ownerContact:
+            status === "accepted" ? ownerContact : null,
+        respondedAt: serverTimestamp(),
+    });
+}
+
 export async function markItemResolved(itemId) {
-     if (!itemId) {
-       throw new Error("An item ID is required to mark it as resolved.");
-     }
+    if (!itemId) {
+        throw new Error("An item ID is required.");
+    }
 
-     const itemRef = doc(db, "items", itemId);
+    const itemRef = doc(db, "items", itemId);
 
-     await updateDoc(itemRef, {
-       status: "resolved",
-     });
+    await updateDoc(itemRef, {
+        status: "resolved",
+        resolvedAt: serverTimestamp(),
+    });
 }
