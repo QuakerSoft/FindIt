@@ -3,9 +3,13 @@ import { Link } from "react-router-dom";
 import { auth } from "../firebase/config";
 import {
     deleteItem,
+    getClaimsByClaimant,
+    getClaimsByOwner,
     getUserProfile,
     getItemsByOwner,
+    updateClaimStatus,
     updateUserProfile,
+    markItemResolved,
 } from "../firebase/firestore";
 
 function ReportImage({ item }) {
@@ -52,12 +56,23 @@ function Account() {
     const [items, setItems] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [loadError, setLoadError] = useState("");
+    
     const [message, setMessage] = useState("");
     const [isEditing, setIsEditing] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [successMessage, setSuccessMessage] = useState("");
+    
     const [deletingItemId, setDeletingItemId] = useState("");
     const [itemPendingDeletion, setItemPendingDeletion] = useState(null);
+    const [itemPendingResolution,setItemPendingResolution,] = useState(null);
+
+    const [resolvingItemId, setResolvingItemId] = useState("");
+    const [receivedClaims, setReceivedClaims] = useState([]);
+    const [submittedClaims, setSubmittedClaims] = useState([]);
+    const [respondingClaimId, setRespondingClaimId] = useState("");
+
+    const [claimPendingResponse, setClaimPendingResponse,] = useState(null);
+    const [claimResponseError, setClaimResponseError] = useState("");
 
     const [firstName, setFirstName] = useState("");
     const [lastName, setLastName] = useState("");
@@ -75,11 +90,35 @@ function Account() {
             }
 
             try {
-                const profileData = await getUserProfile(currentUser.uid);
-                const userItems = await getItemsByOwner(currentUser.uid);
+                const [
+                    profileData,
+                    userItems,
+                    receivedClaimsData,
+                    submittedClaimsData,
+                ] = await Promise.all([
+                    getUserProfile(currentUser.uid),
+                    getItemsByOwner(currentUser.uid),
+                    getClaimsByOwner(currentUser.uid),
+                    getClaimsByClaimant(currentUser.uid),
+                ]);
+
+                const sortNewestFirst = (claims) =>
+                    [...claims].sort((claimA, claimB) => {
+                        const timeA = claimA.createdAt?.toDate
+                            ? claimA.createdAt.toDate().getTime()
+                            : 0;
+
+                        const timeB = claimB.createdAt?.toDate
+                            ? claimB.createdAt.toDate().getTime()
+                            : 0;
+
+                        return timeB - timeA;
+                    });
 
                 setProfile(profileData);
                 setItems(userItems);
+                setReceivedClaims(sortNewestFirst(receivedClaimsData));
+                setSubmittedClaims(sortNewestFirst(submittedClaimsData));
 
                 setFirstName(profileData?.firstName || "");
                 setLastName(profileData?.lastName || "");
@@ -121,6 +160,30 @@ function Account() {
         };
 
         return preferenceLabels[preference] || "Not specified";
+    }
+
+    function formatClaimStatus(status) {
+        const statusLabels = {
+            pending: "Pending",
+            accepted: "Accepted",
+            rejected: "Rejected",
+        };
+
+        return statusLabels[status] || "Unknown";
+    }
+
+    function formatClaimDate(timestamp) {
+        if (!timestamp?.toDate) {
+            return "Date unavailable";
+        }
+
+        return timestamp.toDate().toLocaleDateString();
+    }
+
+    function getRequestLabel(claim) {
+        return claim.requestType === "ownership_claim"
+            ? "Ownership claim"
+            : "Found-item response";
     }
 
     function isValidPhoneNumber(phoneValue) {
@@ -275,6 +338,205 @@ function Account() {
         }
     }
 
+    function requestItemResolution(item) {
+        const currentUser = auth.currentUser;
+
+        setMessage("");
+        setSuccessMessage("");
+
+        if (!currentUser) {
+            setMessage(
+                "Please log in again before resolving a report."
+            );
+            return;
+        }
+
+        if (item.ownerId !== currentUser.uid) {
+            setMessage(
+                "You can only resolve reports that you created."
+            );
+            return;
+        }
+
+        if (item.status === "resolved") {
+            setMessage("This report is already resolved.");
+            return;
+        }
+
+        setItemPendingResolution(item);
+    }
+
+    async function confirmItemResolution() {
+        if (!itemPendingResolution) {
+            return;
+        }
+
+        const currentUser = auth.currentUser;
+
+        if (
+            !currentUser ||
+            itemPendingResolution.ownerId !== currentUser.uid
+        ) {
+            setMessage(
+                "You can only resolve reports that you created."
+            );
+            setItemPendingResolution(null);
+            return;
+        }
+
+        try {
+            setResolvingItemId(itemPendingResolution.id);
+            setMessage("");
+            setSuccessMessage("");
+
+            await markItemResolved(
+                itemPendingResolution.id
+            );
+
+            setItems((currentItems) =>
+                currentItems.map((currentItem) =>
+                    currentItem.id ===
+                    itemPendingResolution.id
+                        ? {
+                            ...currentItem,
+                            status: "resolved",
+                        }
+                        : currentItem
+                )
+            );
+
+            setSuccessMessage(
+                `"${itemPendingResolution.title}" was marked as resolved.`
+            );
+
+            setItemPendingResolution(null);
+        } catch (error) {
+            console.error(
+                "Item resolution error:",
+                error
+            );
+
+            setMessage(
+                "Unable to resolve this report. Please try again."
+            );
+        } finally {
+            setResolvingItemId("");
+        }
+    }
+
+    function requestClaimResponse(claim, newStatus) {
+        setMessage("");
+        setSuccessMessage("");
+        setClaimResponseError("");
+
+        setClaimPendingResponse({
+            claim,
+            newStatus,
+        });
+    }
+
+    function buildOwnerContact() {
+        const currentUser = auth.currentUser;
+        const preference =
+            profile.contactPreference || "email";
+
+        const ownerContact = {
+            preference,
+            email: "",
+            phone: "",
+        };
+
+        if (
+            preference === "email" ||
+            preference === "both"
+        ) {
+            ownerContact.email =
+                profile.email || currentUser?.email || "";
+        }
+
+        if (
+            preference === "phone" ||
+            preference === "both"
+        ) {
+            ownerContact.phone = profile.phoneNumber || "";
+        }
+
+        return ownerContact;
+    }
+
+    async function handleClaimResponse(claim, newStatus) {
+        const currentUser = auth.currentUser;
+
+        setMessage("");
+        setSuccessMessage("");
+        setClaimResponseError("");
+
+        if (!currentUser) {
+            setClaimResponseError(
+                "Please log in again before responding."
+            );
+            return;
+        }
+
+        if (claim.ownerId !== currentUser.uid) {
+            setClaimResponseError(
+                "Only the report owner can respond to this request."
+            );
+            return;
+        }
+
+        if (claim.status !== "pending") {
+            setClaimResponseError(
+                "This request has already been reviewed."
+            );
+            return;
+        }
+
+        try {
+            setRespondingClaimId(claim.id);
+
+            const ownerContact =
+                newStatus === "accepted"
+                    ? buildOwnerContact()
+                    : null;
+
+            await updateClaimStatus(
+                claim.id,
+                newStatus,
+                ownerContact
+            );
+
+            setReceivedClaims((currentClaims) =>
+                currentClaims.map((currentClaim) =>
+                    currentClaim.id === claim.id
+                        ? {
+                            ...currentClaim,
+                            status: newStatus,
+                            ownerContact,
+                        }
+                        : currentClaim
+                )
+            );
+
+            setClaimPendingResponse(null);
+
+            setSuccessMessage(
+                newStatus === "accepted"
+                    ? `You accepted ${claim.claimantFirstName || "the claimant"}'s request for "${claim.itemTitle}".`
+                    : `You rejected ${claim.claimantFirstName || "the claimant"}'s request for "${claim.itemTitle}".`
+            );
+        } catch (error) {
+            console.error("Claim response error:", error);
+
+            setClaimResponseError(
+                error.message ||
+                    "Unable to respond to this request."
+            );
+        } finally {
+            setRespondingClaimId("");
+        }
+    }
+
     if (isLoading) {
         return (
             <main className="flex flex-col items-center justify-center py-20">
@@ -304,7 +566,7 @@ function Account() {
     }
 
     return (
-        <main className="mx-auto max-w-5xl py-12">
+        <main className="pt-3 mx-auto max-w-5xl py-12">
             <h1 className="text-3xl font-bold">
                 My Account
             </h1>
@@ -322,9 +584,12 @@ function Account() {
             )}
 
             {isEditing ? (
-                <form onSubmit={handleSaveProfile} className="mt-6 max-w-xl">
+                <form onSubmit={handleSaveProfile} className="justify-center rounded-3xl bg-white border border-slate-200 p-6 shadow-sm sm:p-8 mt-6 max-w-xl">
+                    <label className="font-semibold text-lg">
+                        Make changes to your account.
+                    </label>
                     <div className="grid gap-5 sm:grid-cols-2">
-                        <label className="text-sm font-medium">
+                        <label className="text-sm font-medium pt-5">
                             First name
                             <input
                                 type="text"
@@ -335,7 +600,7 @@ function Account() {
                             />
                         </label>
 
-                        <label className="text-sm font-medium">
+                        <label className="text-sm font-medium pt-5">
                             Last name
                             <input
                                 type="text"
@@ -383,7 +648,7 @@ function Account() {
                         <button
                             type="submit"
                             disabled={isSaving}
-                            className="rounded-xl bg-red-600 px-5 py-2.5 font-semibold text-white disabled:opacity-60"
+                            className="border border-transparent rounded-xl bg-[#A6192E] px-5 py-2.5 font-semibold text-white disabled:opacity-60 transition hover:bg-white hover:text-[#A6192E] hover:border-[#A6192E]"
                         >
                             {isSaving ? "Saving..." : "Save Changes"}
                         </button>
@@ -392,7 +657,7 @@ function Account() {
                             type="button"
                             onClick={handleCancelEdit}
                             disabled={isSaving}
-                            className="rounded-xl border border-slate-300 px-5 py-2.5 font-semibold"
+                            className="rounded-xl border border-slate-300 px-5 py-2.5 font-semibold transition hover:bg-slate-100"
                         >
                             Cancel
                         </button>
@@ -400,14 +665,15 @@ function Account() {
                 </form>
             ) : (
                 <section className="mt-6 max-w-xl">
-                    <p className="text-lg text-slate-700">
-                        Welcome,{" "}
+                    <p className="mb-6 text-lg text-slate-700">
+                        Welcome back,{" "}
                         <span className="font-semibold text-slate-900">
-                            {profile.firstName} {profile.lastName}
+                            {profile.firstName}
                         </span>
+                        !
                     </p>
 
-                    <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                    <div className="pl-7 py-6 mt-5 rounded-2xl border border-slate-200 bg-white shadow-sm">
                         <h2 className="text-lg font-semibold text-slate-900">
                             Profile Information
                         </h2>
@@ -460,13 +726,451 @@ function Account() {
                             setSuccessMessage("");
                             setIsEditing(true);
                         }}
-                        className="mt-5 rounded-xl bg-red-600 px-5 py-2.5 font-semibold text-white"
+                        className="mt-7 rounded-xl bg-[#A6192E] px-7 py-2.5 font-semibold text-white border border-transparent transition hover:bg-white hover:text-[#A6192E] hover:border-[#A6192E]"
                     >
                         Edit Profile
                     </button>
                 </section>
             )}
 
+            <section className="mt-10">
+                <h2 className="text-2xl font-semibold text-slate-900">
+                    Requests Received
+                </h2>
+
+                <p className="mt-2 text-sm text-slate-600">
+                    Review responses submitted for your lost and found reports.
+                </p>
+
+                {receivedClaims.length === 0 ? (
+                    <p className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                        You haven't received any requests yet.
+                    </p>
+                ) : (
+                    <div className="mt-5 space-y-4">
+                        {receivedClaims.map((claim) => (
+                            <article
+                                key={claim.id}
+                                className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+                            >
+                                <div className="flex flex-wrap items-start justify-between gap-3">
+                                    <div>
+                                        <p className="text-xs font-semibold uppercase tracking-wide text-red-600">
+                                            {getRequestLabel(claim)}
+                                        </p>
+
+                                        <h3 className="mt-1 text-lg font-semibold text-slate-900">
+                                            {claim.itemTitle}
+                                        </h3>
+                                        <p className="mt-2 text-sm text-slate-600">
+                                            Request from{" "}
+                                            <span className="font-semibold text-slate-900">
+                                                {claim.claimantFirstName || "a CSUN user"}
+                                            </span>
+                                        </p>
+                                    </div>
+
+                                    <span
+                                        className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                                            claim.status === "accepted"
+                                                ? "bg-green-100 text-green-800"
+                                                : claim.status === "rejected"
+                                                ? "bg-red-100 text-red-800"
+                                                : "bg-amber-100 text-amber-800"
+                                        }`}
+                                    >
+                                        {formatClaimStatus(claim.status)}
+                                    </span>
+                                </div>
+
+                                <p className="mt-4 text-sm text-slate-700">
+                                    {claim.message}
+                                </p>
+
+                                <p className="mt-3 text-xs text-slate-500">
+                                    Submitted {formatClaimDate(claim.createdAt)}
+                                </p>
+
+                                {claim.status === "pending" && (
+                                    <div className="mt-5 flex flex-wrap gap-3">
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                requestClaimResponse(
+                                                    claim,
+                                                    "accepted"
+                                                )
+                                            }
+                                            disabled={Boolean(respondingClaimId)}
+                                            className="rounded-xl bg-green-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60"
+                                        >
+                                            {respondingClaimId === claim.id
+                                                ? "Saving..."
+                                                : "Review Acceptance"}
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                requestClaimResponse(
+                                                    claim,
+                                                    "rejected"
+                                                )
+                                            }
+                                            disabled={Boolean(respondingClaimId)}
+                                            className="rounded-xl border border-red-300 bg-white px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                                        >
+                                            {respondingClaimId === claim.id
+                                                ? "Saving..."
+                                                : "Review Rejection"}
+                                        </button>
+                                    </div>
+                                )}
+
+                                {claim.status === "accepted" && (
+                                    <div className="mt-4 rounded-xl border border-green-200 bg-green-50 px-4 py-3">
+                                        <p className="text-sm font-semibold text-green-900">
+                                            Claimant contact information
+                                        </p>
+
+                                        {claim.claimantContact?.email && (
+                                            <p className="mt-2 text-sm text-green-800">
+                                                Email: {claim.claimantContact.email}
+                                            </p>
+                                        )}
+
+                                        {claim.claimantContact?.phone && (
+                                            <p className="mt-1 text-sm text-green-800">
+                                                Phone:{" "}
+                                                {formatPhoneNumber(
+                                                    claim.claimantContact.phone
+                                                )}
+                                            </p>
+                                        )}
+
+                                        {!claim.claimantContact && claim.claimantEmail && (
+                                            <p className="mt-2 text-sm text-green-800">
+                                                Email: {claim.claimantEmail}
+                                            </p>
+                                        )}
+                                    </div>
+                                )}
+
+                                <Link
+                                    to={`/items/${claim.itemId}`}
+                                    className="mt-4 inline-block text-sm font-semibold text-red-600 hover:text-red-700"
+                                >
+                                    View Report →
+                                </Link>
+                            </article>
+                        ))}
+                    </div>
+                )}
+            </section>
+
+            <section className="mt-10">
+                <h2 className="text-2xl font-semibold text-slate-900">
+                    Requests You Submitted
+                </h2>
+
+                <p className="mt-2 text-sm text-slate-600">
+                    Track the status of requests you've sent to other users.
+                </p>
+
+                {submittedClaims.length === 0 ? (
+                    <p className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                        You haven't submitted any requests yet.
+                    </p>
+                ) : (
+                    <div className="mt-5 space-y-4">
+                        {submittedClaims.map((claim) => (
+                            <article
+                                key={claim.id}
+                                className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+                            >
+                                <div className="flex flex-wrap items-start justify-between gap-3">
+                                    <div>
+                                        <p className="text-xs font-semibold uppercase tracking-wide text-red-600">
+                                            {getRequestLabel(claim)}
+                                        </p>
+
+                                        <h3 className="mt-1 text-lg font-semibold text-slate-900">
+                                            {claim.itemTitle}
+                                        </h3>
+                                        <p className="mt-2 text-sm font-medium text-slate-600">
+                                            Request submitted by you
+                                        </p>
+                                    </div>
+
+                                    <span
+                                        className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                                            claim.status === "accepted"
+                                                ? "bg-green-100 text-green-800"
+                                                : claim.status === "rejected"
+                                                ? "bg-red-100 text-red-800"
+                                                : "bg-amber-100 text-amber-800"
+                                        }`}
+                                    >
+                                        {formatClaimStatus(claim.status)}
+                                    </span>
+                                </div>
+
+                                <p className="mt-4 text-sm text-slate-700">
+                                    {claim.message}
+                                </p>
+
+                                <p className="mt-3 text-xs text-slate-500">
+                                    Submitted {formatClaimDate(claim.createdAt)}
+                                </p>
+
+                                {claim.status === "pending" && (
+                                    <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                                        Waiting for the poster to review your request.
+                                    </p>
+                                )}
+
+                                {claim.status === "rejected" && (
+                                    <p className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+                                        The poster did not approve this request.
+                                    </p>
+                                )}
+
+                                {claim.status === "accepted" &&
+                                    claim.ownerContact && (
+                                        <div className="mt-4 rounded-xl border border-green-200 bg-green-50 px-4 py-3">
+                                            <p className="text-sm font-semibold text-green-900">
+                                                Poster contact information
+                                            </p>
+
+                                            {claim.ownerContact.email && (
+                                                <p className="mt-2 text-sm text-green-800">
+                                                    Email:{" "}
+                                                    {claim.ownerContact.email}
+                                                </p>
+                                            )}
+
+                                            {claim.ownerContact.phone && (
+                                                <p className="mt-1 text-sm text-green-800">
+                                                    Phone:{" "}
+                                                    {formatPhoneNumber(
+                                                        claim.ownerContact.phone
+                                                    )}
+                                                </p>
+                                            )}
+                                        </div>
+                                    )}
+
+                                <Link
+                                    to={`/items/${claim.itemId}`}
+                                    className="mt-4 inline-block text-sm font-semibold text-red-600 hover:text-red-700"
+                                >
+                                    View Report →
+                                </Link>
+                            </article>
+                        ))}
+                    </div>
+                )}
+            </section>
+
+            {claimPendingResponse && (
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+                    role="presentation"
+                    onClick={() => {
+                        if (!respondingClaimId) {
+                            setClaimPendingResponse(null);
+                            setClaimResponseError("");
+                        }
+                    }}
+                >
+                    <section
+                        role="alertdialog"
+                        aria-modal="true"
+                        aria-labelledby="claim-response-title"
+                        aria-describedby="claim-response-description"
+                        className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl"
+                        onClick={(event) => event.stopPropagation()}
+                    >
+                        <h2
+                            id="claim-response-title"
+                            className="text-xl font-semibold text-slate-900"
+                        >
+                            {claimPendingResponse.newStatus === "accepted"
+                                ? `Accept ${claimPendingResponse.claim.claimantFirstName || "this user"}'s request?`
+                                : `Reject ${claimPendingResponse.claim.claimantFirstName || "this user"}'s request?`}
+                        </h2>
+
+                        <div
+                            id="claim-response-description"
+                            className="mt-3 space-y-3 text-sm text-slate-700"
+                        >
+                            {claimPendingResponse.newStatus ===
+                            "accepted" ? (
+                                <>
+                                    <p>
+                                        Your preferred contact information
+                                        will be shared with{" "}
+                                        {claimPendingResponse.claim
+                                            .claimantFirstName ||
+                                            "the claimant"}.
+                                    </p>
+
+                                    <p>
+                                        Their preferred contact information
+                                        will also be shared with you so you
+                                        can coordinate the return of the
+                                        item.
+                                    </p>
+
+                                    <p className="font-medium text-slate-900">
+                                        This decision cannot be undone.
+                                    </p>
+                                </>
+                            ) : (
+                                <>
+                                    <p>
+                                        No contact information will be
+                                        shared.
+                                    </p>
+
+                                    <p>
+                                        {claimPendingResponse.claim
+                                            .claimantFirstName ||
+                                            "The claimant"}{" "}
+                                        will not be able to submit another
+                                        request for this report.
+                                    </p>
+
+                                    <p className="font-medium text-slate-900">
+                                        This decision cannot be undone.
+                                    </p>
+                                </>
+                            )}
+                        </div>
+
+                        {claimResponseError && (
+                            <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+                                {claimResponseError}
+                            </div>
+                        )}
+
+                        <div className="mt-6 flex flex-wrap gap-3">
+                            <button
+                                type="button"
+                                onClick={() =>
+                                    handleClaimResponse(
+                                        claimPendingResponse.claim,
+                                        claimPendingResponse.newStatus
+                                    )
+                                }
+                                disabled={Boolean(respondingClaimId)}
+                                className={`rounded-xl px-5 py-2.5 text-sm font-semibold text-white transition disabled:opacity-60 ${
+                                    claimPendingResponse.newStatus ===
+                                    "accepted"
+                                        ? "bg-green-600 hover:bg-green-700"
+                                        : "bg-red-600 hover:bg-red-700"
+                                }`}
+                            >
+                                {respondingClaimId
+                                    ? "Saving..."
+                                    : claimPendingResponse.newStatus ===
+                                        "accepted"
+                                    ? "Yes, Accept and Share Contact"
+                                    : "Yes, Reject Request"}
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setClaimPendingResponse(null);
+                                    setClaimResponseError("");
+                                }}
+                                disabled={Boolean(respondingClaimId)}
+                                className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:opacity-60"
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    </section>
+                </div>
+            )}
+
+            {itemPendingResolution && (
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+                    role="presentation"
+                    onClick={() => {
+                        if (!resolvingItemId) {
+                            setItemPendingResolution(null);
+                        }
+                    }}
+                >
+                    <section
+                        role="alertdialog"
+                        aria-modal="true"
+                        aria-labelledby="resolve-report-title"
+                        aria-describedby="resolve-report-description"
+                        className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl"
+                        onClick={(event) =>
+                            event.stopPropagation()
+                        }
+                    >
+                        <h2
+                            id="resolve-report-title"
+                            className="text-xl font-semibold text-slate-900"
+                        >
+                            Mark this report as resolved?
+                        </h2>
+
+                        <div
+                            id="resolve-report-description"
+                            className="mt-3 space-y-3 text-sm text-slate-700"
+                        >
+                            <p>
+                                You are about to resolve{" "}
+                                <strong>
+                                    {itemPendingResolution.title}
+                                </strong>
+                                .
+                            </p>
+
+                            <p>
+                                Users will no longer be able to submit
+                                requests for this report.
+                            </p>
+
+                            <p className="font-medium text-slate-900">
+                                This action cannot currently be undone.
+                            </p>
+                        </div>
+
+                        <div className="mt-6 flex flex-wrap gap-3">
+                            <button
+                                type="button"
+                                onClick={confirmItemResolution}
+                                disabled={Boolean(resolvingItemId)}
+                                className="rounded-xl bg-green-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-green-700 disabled:opacity-60"
+                            >
+                                {resolvingItemId
+                                    ? "Resolving..."
+                                    : "Yes, Mark as Resolved"}
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() =>
+                                    setItemPendingResolution(null)
+                                }
+                                disabled={Boolean(resolvingItemId)}
+                                className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:opacity-60"
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    </section>
+                </div>
+            )}
+            
             {itemPendingDeletion && (
                 <div
                     className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
@@ -526,7 +1230,7 @@ function Account() {
                 </div>
             )}
 
-            <h2 className="mt-10 text-2xl font-semibold">
+            <h2 className="mt-7 text-2xl font-semibold">
                 My Reports
             </h2>
 
@@ -583,6 +1287,21 @@ function Account() {
                                 >
                                     View Report
                                 </Link>
+
+                                {item.status === "open" && (
+                                    <button
+                                        type="button"
+                                        onClick={() =>
+                                            requestItemResolution(item)
+                                        }
+                                        disabled={resolvingItemId === item.id}
+                                        className="rounded-xl bg-green-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-green-700 disabled:opacity-60"
+                                    >
+                                        {resolvingItemId === item.id
+                                            ? "Resolving..."
+                                            : "Mark as Resolved"}
+                                    </button>
+                                )}
 
                                 <Link
                                     to={`/items/${item.id}/edit`}
