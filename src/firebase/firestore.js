@@ -161,3 +161,14 @@ export async function getItemsByOwner(ownerId) {
     ...itemDoc.data(),
   }));
 }
+export async function markItemResolved(itemId) {
+     if (!itemId) {
+       throw new Error("An item ID is required to mark it as resolved.");
+     }
+
+     const itemRef = doc(db, "items", itemId);
+
+     await updateDoc(itemRef, {
+       status: "resolved",
+     });
+}
