@@ -87,15 +87,19 @@ function ReportPost({ item }) {
     } catch (error) {
       console.error("Report submission error:", error);
 
-      if (error.code === "permission-denied") {
+      if (error.message === "ALREADY_REPORTED") {
         setMessage(
-          "The report could not be saved. You may have already reported this post, or the Firestore report rules have not been published."
+          "You have already reported this post. Our team will review your original report."
+        );
+      } else if (error.code === "permission-denied") {
+        setMessage(
+          "You do not have permission to report this post. Please make sure you are logged in and are not reporting your own post."
         );
       } else {
-        setMessage("Unable to submit your report. Please try again.");
+        setMessage(
+          "Unable to submit your report. Please try again."
+        );
       }
-
-      setMessageType("error");
     } finally {
       setIsSubmitting(false);
     }

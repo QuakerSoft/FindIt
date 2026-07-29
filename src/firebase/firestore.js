@@ -27,7 +27,6 @@ export async function createItem(itemData) {
         status: "open",
         imageUrl: itemData.imageUrl || "",
         ownerId: itemData.ownerId,
-        ownerEmail: itemData.ownerEmail,
         dateReported: itemData.dateReported,
         createdAt: serverTimestamp(),
     };
@@ -113,13 +112,28 @@ export async function createReport(reportData) {
         throw new Error("You must be logged in to report an item.");
     }
 
-    const reportId = `${reportData.itemId}_${reportData.reporterId}`;
-    const reportRef = doc(db, "reports", reportId);
-    const existingReport = await getDoc(reportRef);
+    const reportsRef = collection(db, "reports");
+    const reporterQuery = query(
+        reportsRef,
+        where("reporterId", "==", reportData.reporterId)
+    );
 
-    if (existingReport.exists()) {
+    const reporterReportsSnapshot = await getDocs(
+        reporterQuery
+    );
+
+    const existingReport =
+        reporterReportsSnapshot.docs.find(
+            (reportDoc) =>
+                reportDoc.data().itemId === reportData.itemId
+        );
+
+    if (existingReport) {
         throw new Error("ALREADY_REPORTED");
     }
+
+    const reportId = `${reportData.itemId}_${reportData.reporterId}`;
+    const reportRef = doc(db, "reports", reportId);
 
     await setDoc(reportRef, {
         itemId: reportData.itemId,
