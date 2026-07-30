@@ -10,11 +10,21 @@ import {
     deleteDoc,
     setDoc,
     serverTimestamp,
+    onSnapshot,
 } from "firebase/firestore";
 
 import { db } from "./config";
 
 export async function createItem(itemData) {
+    const ownerFirstName =
+        itemData.ownerFirstName?.trim();
+
+    if (!ownerFirstName) {
+        throw new Error(
+            "The report owner’s first name is required."
+        );
+    }
+
     const itemsRef = collection(db, "items");
 
     const newItem = {
@@ -27,6 +37,7 @@ export async function createItem(itemData) {
         status: "open",
         imageUrl: itemData.imageUrl || "",
         ownerId: itemData.ownerId,
+        ownerFirstName,
         dateReported: itemData.dateReported,
         createdAt: serverTimestamp(),
     };
@@ -269,6 +280,9 @@ export async function createClaim(claimData) {
 
         ownerContact: null,
 
+        ownerViewed: false,
+        claimantViewedResponse: true,
+
         createdAt: serverTimestamp(),
         respondedAt: null,
     };
@@ -295,6 +309,88 @@ export async function getClaimsByOwner(ownerId) {
         id: claimDoc.id,
         ...claimDoc.data(),
     }));
+}
+
+export function subscribeToClaimNotificationCount(
+    userId,
+    onCountChange,
+    onError
+) {
+    if (!userId) {
+        throw new Error("A user ID is required.");
+    }
+
+    const claimsRef = collection(db, "claims");
+
+    const ownerQuery = query(
+        claimsRef,
+        where("ownerId", "==", userId)
+    );
+
+    const claimantQuery = query(
+        claimsRef,
+        where("claimantId", "==", userId)
+    );
+
+    let newRequestCount = 0;
+    let newResponseCount = 0;
+
+    function sendUpdatedCount() {
+        onCountChange(
+            newRequestCount + newResponseCount
+        );
+    }
+
+    const unsubscribeFromOwnerClaims = onSnapshot(
+        ownerQuery,
+        (querySnapshot) => {
+            newRequestCount =
+                querySnapshot.docs.filter(
+                    (claimDoc) =>
+                        claimDoc.data().ownerViewed === false
+                ).length;
+
+            sendUpdatedCount();
+        },
+        (error) => {
+            console.error(
+                "Received-request notification error:",
+                error
+            );
+
+            onError?.(error);
+        }
+    );
+
+    const unsubscribeFromClaimantClaims = onSnapshot(
+        claimantQuery,
+        (querySnapshot) => {
+            newResponseCount =
+                querySnapshot.docs.filter((claimDoc) => {
+                    const claim = claimDoc.data();
+
+                    return (
+                        claim.status !== "pending" &&
+                        claim.claimantViewedResponse === false
+                    );
+                }).length;
+
+            sendUpdatedCount();
+        },
+        (error) => {
+            console.error(
+                "Submitted-request notification error:",
+                error
+            );
+
+            onError?.(error);
+        }
+    );
+
+    return () => {
+        unsubscribeFromOwnerClaims();
+        unsubscribeFromClaimantClaims();
+    };
 }
 
 export async function getClaimsByClaimant(claimantId) {
@@ -343,8 +439,45 @@ export async function updateClaimStatus(
         status,
         ownerContact:
             status === "accepted" ? ownerContact : null,
+        claimantViewedResponse: false,
         respondedAt: serverTimestamp(),
     });
+}
+
+export async function markReceivedClaimsViewed(claims) {
+    const unreadClaims = claims.filter(
+        (claim) => claim.ownerViewed === false
+    );
+
+    await Promise.all(
+        unreadClaims.map((claim) => {
+            const claimRef = doc(db, "claims", claim.id);
+
+            return updateDoc(claimRef, {
+                ownerViewed: true,
+            });
+        })
+    );
+}
+
+export async function markSubmittedClaimResponsesViewed(
+    claims
+) {
+    const unreadResponses = claims.filter(
+        (claim) =>
+            claim.status !== "pending" &&
+            claim.claimantViewedResponse === false
+    );
+
+    await Promise.all(
+        unreadResponses.map((claim) => {
+            const claimRef = doc(db, "claims", claim.id);
+
+            return updateDoc(claimRef, {
+                claimantViewedResponse: true,
+            });
+        })
+    );
 }
 
 export async function markItemResolved(itemId) {

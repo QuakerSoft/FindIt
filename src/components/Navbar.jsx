@@ -2,11 +2,13 @@ import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth } from "../firebase/config";
+import { subscribeToClaimNotificationCount } from "../firebase/firestore";
 
 function Navbar() {
   const location = useLocation();
   const navigate = useNavigate();
   const [currentUser, setCurrentUser] = useState(null);
+  const [notificationCount, setNotificationCount] = useState(0);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -16,6 +18,26 @@ function Navbar() {
     return unsubscribe;
   }, []);
 
+  useEffect(() => {
+    if (!currentUser) {
+      return;
+    }
+
+    const unsubscribe =
+      subscribeToClaimNotificationCount(
+        currentUser.uid,
+        (newNotificationCount) => {
+          setNotificationCount(
+            newNotificationCount
+          );
+        },
+        () => {
+          setNotificationCount(0);
+        }
+      );
+
+    return unsubscribe;
+  }, [currentUser]);
   async function handleLogout() {
     try {
       await signOut(auth);
@@ -91,6 +113,24 @@ function Navbar() {
                     </span>
 
                     <span>Account</span>
+                  {notificationCount > 0 && (
+                    <span
+                      aria-label={`${notificationCount} new ${
+                        notificationCount === 1
+                          ? "notification"
+                          : "notifications"
+                      }`}
+                      className={`flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-xs font-bold ${
+                        location.pathname === "/account"
+                          ? "bg-[#A6192E] text-white"
+                          : "bg-amber-300 text-slate-900"
+                      }`}
+                    >
+                      {notificationCount > 99
+                        ? "99+"
+                        : notificationCount}
+                    </span>
+                  )}
                 </Link>
 
                 <button
