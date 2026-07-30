@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { getAllItems } from "../firebase/firestore";
+import { getAllItems, getClaimsByOwner } from "../firebase/firestore";
 import { ITEM_CATEGORIES } from "../constants/categories";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "../firebase/config";
@@ -15,7 +15,9 @@ function ItemList() {
   const [typeFilter, setTypeFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [sortOrder, setSortOrder] = useState("newest");
+
   const [currentUser, setCurrentUser] = useState(null);
+  const [pendingClaimCounts, setPendingClaimCounts] = useState({});
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(
@@ -27,6 +29,45 @@ function ItemList() {
 
     return unsubscribe;
   }, []);
+
+  useEffect(() => {
+    async function loadPendingClaimCounts() {
+      if (!currentUser) {
+        setPendingClaimCounts({});
+        return;
+      }
+
+      try {
+        const ownerClaims = await getClaimsByOwner(
+          currentUser.uid
+        );
+
+        const claimCounts = ownerClaims.reduce(
+          (counts, claim) => {
+            if (claim.status !== "pending") {
+              return counts;
+            }
+
+            counts[claim.itemId] =
+              (counts[claim.itemId] || 0) + 1;
+
+            return counts;
+          },
+          {}
+        );
+
+        setPendingClaimCounts(claimCounts);
+      } catch (error) {
+        console.error(
+          "Unable to load pending request counts:",
+          error
+        );
+        setPendingClaimCounts({});
+      }
+    }
+
+    loadPendingClaimCounts();
+  }, [currentUser]);
 
   useEffect(() => {
     async function loadItems() {
@@ -62,6 +103,10 @@ function ItemList() {
   const normalizedSearch = searchTerm.trim().toLowerCase();
 
   const filteredItems = items.filter((item) => {
+    if (item.status === "resolved") {
+        return false;
+    }
+
     const title = item.title?.toLowerCase() || "";
     const description = item.description?.toLowerCase() || "";
     const category = item.category?.toLowerCase() || "";
@@ -221,9 +266,18 @@ function ItemList() {
                   >
                     <Link
                       to={`/items/${item.id}`}
+                      state={{ from: "browse" }}
                       aria-label={`View item: ${item.title}`}
                       className="absolute inset-0 z-10 rounded-2xl focus:outline-none focus:ring-4 focus:ring-red-100"
                     />
+
+                    {isOwner && pendingClaimCounts[item.id] > 0 && (
+                      <div className="pointer-events-none absolute left-3 top-3 z-30 rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-900 shadow-sm">
+                        {pendingClaimCounts[item.id] === 1
+                          ? "1 pending request"
+                          : `${pendingClaimCounts[item.id]} pending requests`}
+                      </div>
+                    )}
 
                     {isOwner && (
                       <div className="absolute right-3 top-3 z-30">
@@ -277,9 +331,26 @@ function ItemList() {
 
                     {/* Item name */}
                     <div className="p-4">
+                      <div className="mb-2 flex items-center gap-2">
+                        <span
+                          className={`rounded-full px-2.5 py-1 text-xs font-bold uppercase tracking-wide ${
+                            item.type === "lost"
+                              ? "bg-red-100 text-red-700"
+                              : "bg-green-100 text-green-700"
+                          }`}
+                        >
+                          {item.type === "lost" ? "Lost item" : "Found item"}
+                        </span>
+                      </div>
+
                       <h3 className="truncate text-base font-semibold text-slate-900 transition group-hover:text-red-600">
                         {item.title || "Untitled item"}
                       </h3>
+
+                      <p className="mt-1 truncate text-sm text-slate-500">
+                        Posted by{" "}
+                        {item.ownerFirstName || "a CSUN community member"}
+                      </p>
                     </div>
                   </article>
                 );

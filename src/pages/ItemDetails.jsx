@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
-import { createClaim, getItemById, getUserProfile } from "../firebase/firestore";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
+import { createClaim, getClaimsByOwner, getItemById, getUserProfile } from "../firebase/firestore";
 import ReportPost from "../components/ReportPost";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "../firebase/config";
@@ -8,6 +8,7 @@ import ReportActionsMenu from "../components/ReportActionsMenu";
 
 function ItemDetails() {
   const { itemId } = useParams();
+  const location = useLocation();
   const navigate = useNavigate();
 
   const [item, setItem] = useState(null);
@@ -20,8 +21,10 @@ function ItemDetails() {
   const [claimMessage, setClaimMessage] = useState("");
   const [isSubmittingClaim, setIsSubmittingClaim] = useState(false);
   const [claimError, setClaimError] = useState("");
+  
   const [claimSuccess, setClaimSuccess] = useState("");
   const [showSubmitConfirmation, setShowSubmitConfirmation] = useState(false);
+  const [pendingClaimCount, setPendingClaimCount] = useState(0);
 
   useEffect(() => {
     async function loadItem() {
@@ -56,6 +59,40 @@ function ItemDetails() {
     return unsubscribe;
   }, []);
 
+  useEffect(() => {
+    async function loadPendingClaims() {
+      if (
+        !currentUser ||
+        !item ||
+        currentUser.uid !== item.ownerId
+      ) {
+        setPendingClaimCount(0);
+        return;
+      }
+
+      try {
+        const ownerClaims = await getClaimsByOwner(
+          currentUser.uid
+        );
+
+        const itemPendingClaims = ownerClaims.filter(
+          (claim) =>
+            claim.itemId === item.id &&
+            claim.status === "pending"
+        );
+
+        setPendingClaimCount(itemPendingClaims.length);
+      } catch (error) {
+        console.error(
+          "Unable to load pending requests:",
+          error
+        );
+        setPendingClaimCount(0);
+      }
+    }
+
+    loadPendingClaims();
+  }, [currentUser, item]);
 
   function requestClaimSubmission(event) {
     event.preventDefault();
@@ -187,6 +224,17 @@ function ItemDetails() {
   const isOwner =
     currentUser && item && currentUser.uid === item.ownerId;
 
+    const cameFromAccount =
+    location.state?.from === "account";
+
+  const backPath = cameFromAccount
+    ? "/account"
+    : "/browse";
+
+  const backLabel = cameFromAccount
+    ? "Back to Your Account"
+    : "Back to Browse";
+
   if (isLoading) {
     return (
       <main className="flex flex-col items-center justify-center py-20">
@@ -211,10 +259,10 @@ function ItemDetails() {
         </p>
 
         <Link
-          to="/browse"
+          to={backPath}
           className="mt-6 inline-block rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white"
         >
-          Back to Browse
+          {backLabel}
         </Link>
       </main>
     );
@@ -223,10 +271,10 @@ function ItemDetails() {
   return (
     <main className="mx-auto max-w-3xl py-10">
       <Link
-        to="/browse"
+        to={backPath}
         className="text-sm font-medium text-red-600 hover:text-red-700"
       >
-        ← Back to Browse
+        ← {backLabel}
       </Link>
 
       <article className="mt-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
@@ -239,6 +287,13 @@ function ItemDetails() {
             <h1 className="mt-2 text-3xl font-bold text-slate-900">
               {item.title}
             </h1>
+
+            <p className="mt-2 text-sm text-slate-500">
+              Posted by{" "}
+              <span className="font-medium text-slate-700">
+                {item.ownerFirstName || "a CSUN community member"}
+              </span>
+            </p>
           </div>
 
           <div className="shrink-0">
@@ -319,6 +374,27 @@ function ItemDetails() {
                 onLoad={() => setImageError(false)}
               />
             )}
+          </div>
+        )}
+        {isOwner && pendingClaimCount > 0 && (
+          <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-4">
+            <p className="font-semibold text-amber-900">
+              {pendingClaimCount === 1
+                ? "1 pending request for this report"
+                : `${pendingClaimCount} pending requests for this report`}
+            </p>
+
+            <p className="mt-1 text-sm text-amber-800">
+              Review the request before deciding whether to share
+              contact information.
+            </p>
+
+            <Link
+              to="/account#received-requests"
+              className="mt-3 inline-block text-sm font-semibold text-[#A6192E] hover:underline"
+            >
+              View Pending Requests →
+            </Link>
           </div>
         )}
         {claimSuccess && (

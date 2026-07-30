@@ -1,10 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { auth } from "../firebase/config";
-import {
-  deleteItem,
-  markItemResolved,
-} from "../firebase/firestore";
+import { deleteItem, markItemResolved } from "../firebase/firestore";
+import { createPortal } from "react-dom";
 
 function ReportActionsMenu({
   item,
@@ -174,8 +172,9 @@ function ReportActionsMenu({
         )}
       </div>
 
-      {pendingAction && (
-        <div
+      {pendingAction &&
+        createPortal(
+            <div
           className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4"
           role="presentation"
           onClick={() => {
@@ -277,7 +276,8 @@ function ReportActionsMenu({
               </button>
             </div>
           </section>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );
