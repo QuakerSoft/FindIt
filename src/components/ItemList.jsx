@@ -5,6 +5,7 @@ import { ITEM_CATEGORIES } from "../constants/categories";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "../firebase/config";
 import ReportActionsMenu from "./ReportActionsMenu";
+import ReportPost from "./ReportPost";
 
 function ItemList() {
   const [items, setItems] = useState([]);
@@ -279,15 +280,14 @@ function ItemList() {
                       </div>
                     )}
 
-                    {isOwner && (
-                      <div className="absolute right-3 top-3 z-30">
+                    <div className="absolute right-3 top-3 z-30">
+                      {isOwner ? (
                         <ReportActionsMenu
                           item={item}
                           onResolved={(resolvedItemId) => {
                             setItems((currentItems) =>
                               currentItems.map((currentItem) =>
-                                currentItem.id ===
-                                resolvedItemId
+                                currentItem.id === resolvedItemId
                                   ? {
                                       ...currentItem,
                                       status: "resolved",
@@ -300,14 +300,18 @@ function ItemList() {
                             setItems((currentItems) =>
                               currentItems.filter(
                                 (currentItem) =>
-                                  currentItem.id !==
-                                  deletedItemId
+                                  currentItem.id !== deletedItemId
                               )
                             );
                           }}
                         />
-                      </div>
-                    )}
+                      ) : (
+                        <ReportPost
+                          item={item}
+                          showAsMenu
+                        />
+                      )}
+                    </div>
 
                     {/* Item picture */}
                     <div className="relative aspect-[4/3] overflow-hidden rounded-t-2xl bg-slate-100">
