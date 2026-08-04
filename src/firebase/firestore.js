@@ -38,7 +38,12 @@ export async function createItem(itemData) {
 
 export async function getAllItems() {
     const itemsRef = collection(db, "items");
-    const querySnapshot = await getDocs(itemsRef);
+    const publicItemsQuery = query(
+        itemsRef,
+        where("status", "==", "open"),
+        where("moderationStatus", "==", "visible")
+    );
+    const querySnapshot = await getDocs(publicItemsQuery);
 
     const items = querySnapshot.docs.map((itemDoc) => ({
         id: itemDoc.id,
