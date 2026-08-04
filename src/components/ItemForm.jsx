@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { auth } from "../firebase/config";
-import { createItem } from "../firebase/firestore";
+import { createItem, getUserProfile } from "../firebase/firestore";
 import { ITEM_CATEGORIES } from "../constants/categories";
 
 function ItemForm() {
@@ -40,10 +40,24 @@ function ItemForm() {
     try {
       setIsSubmitting(true);
       setMessage("");
+
+      const userProfile = await getUserProfile(
+        currentUser.uid
+      );
+
+      const ownerFirstName =
+        userProfile?.firstName?.trim();
+
+      if (!ownerFirstName) {
+        throw new Error(
+          "Please complete your profile before reporting an item."
+        );
+      }
+
       await createItem({
         ...formData,
         ownerId: currentUser.uid,
-        ownerEmail: currentUser.email,
+        ownerFirstName,
       });
       setMessage("Item reported successfully!");
       setFormData({

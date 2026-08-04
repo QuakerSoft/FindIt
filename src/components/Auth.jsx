@@ -159,9 +159,22 @@ function Auth() {
         }
     };
 
+        async function handleSubmit(event) {
+        event.preventDefault();
+
+        if (isSignUpMode) {
+            await signUp();
+        } else {
+            await logIn();
+        }
+    }
+
     return (
         <div className="min-h-[80vh] flex items-center justify-center px-4">
-            <div className="w-full max-w-sm bg-white border border-[#E5E0D8] rounded-lg shadow-sm p-8">
+            <form
+                onSubmit={handleSubmit}
+                className="w-full max-w-sm bg-white border border-[#E5E0D8] rounded-lg shadow-sm p-8"
+            >
                 <p className="text-[#A6192E] text-xs font-semibold tracking-widest uppercase mb-2 text-center">
                     {isSignUpMode ? "Join the CSUN Community" : "Welcome Back!"}
                 </p>
@@ -304,8 +317,7 @@ function Auth() {
                 {isSignUpMode ? (
                     <div className="mt-6">
                         <button
-                            type="button"
-                            onClick={signUp}
+                            type="submit"
                             className="w-full bg-[#A6192E] text-white font-medium py-2.5 rounded-sm hover:bg-[#8a1526] transition-colors"
                         >
                             Create Account
@@ -322,8 +334,7 @@ function Auth() {
                 ) : (
                     <div className="mt-6">
                         <button
-                            type="button"
-                            onClick={logIn}
+                            type="submit"
                             className="w-full bg-[#A6192E] text-white font-medium py-2.5 rounded-sm hover:bg-[#8a1526] transition-colors"
                         >
                             Log In
@@ -347,7 +358,7 @@ function Auth() {
                         Forgot your password?
                     </Link>
                 )}
-            </div>
+            </form>
         </div>
     );
 }

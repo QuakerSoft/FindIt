@@ -1,10 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { auth } from "../firebase/config";
-import {
-  deleteItem,
-  markItemResolved,
-} from "../firebase/firestore";
+import { deleteItem, markItemResolved } from "../firebase/firestore";
+import { createPortal } from "react-dom";
 
 function ReportActionsMenu({
   item,
@@ -96,7 +94,10 @@ function ReportActionsMenu({
           );
         }
 
-        await markItemResolved(item.id);
+        await markItemResolved(
+            item.id,
+            currentUser.uid
+            );
         onResolved?.(item.id);
       }
 
@@ -141,13 +142,15 @@ function ReportActionsMenu({
 
         {isMenuOpen && (
           <div className="absolute right-0 top-11 z-40 w-52 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-xl">
-            <Link
-              to={`/items/${item.id}/edit`}
-              onClick={() => setIsMenuOpen(false)}
-              className="block px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
-            >
-              Edit Report
-            </Link>
+            {item.status !== "resolved" && (
+                <Link
+                    to={`/items/${item.id}/edit`}
+                    onClick={() => setIsMenuOpen(false)}
+                    className="block px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+                >
+                    Edit Report
+                </Link>
+                )}
 
             {item.status === "open" && (
               <button
@@ -174,8 +177,9 @@ function ReportActionsMenu({
         )}
       </div>
 
-      {pendingAction && (
-        <div
+      {pendingAction &&
+        createPortal(
+            <div
           className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4"
           role="presentation"
           onClick={() => {
@@ -218,6 +222,11 @@ function ReportActionsMenu({
                   <p>
                     Users will no longer be able to submit
                     requests for this report.
+                  </p>
+
+                  <p>
+                    Any pending requests will be closed, and those
+                    users will be notified that the report was resolved.
                   </p>
 
                   <p className="font-medium text-slate-900">
@@ -277,7 +286,8 @@ function ReportActionsMenu({
               </button>
             </div>
           </section>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );

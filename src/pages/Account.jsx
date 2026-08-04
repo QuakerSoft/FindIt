@@ -10,6 +10,9 @@ import {
     updateClaimStatus,
     updateUserProfile,
     markItemResolved,
+    markReceivedClaimsViewed,
+    markSubmittedClaimResponsesViewed,
+    markModerationNoticesViewed,
 } from "../firebase/firestore";
 
 function ReportImage({ item }) {
@@ -47,6 +50,27 @@ function ReportImage({ item }) {
                 onLoad={() => setImageStatus("loaded")}
                 onError={() => setImageStatus("error")}
             />
+        </div>
+    );
+}
+
+function SafeMeetupNotice() {
+    return (
+        <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+            <p className="text-sm font-semibold text-red-900">
+                Contact the other user directly
+            </p>
+
+            <p className="mt-1 text-sm text-red-800">
+                FindIt does not contact either person automatically.
+                Use the email address or phone number shown above to
+                coordinate the item’s return.
+            </p>
+
+            <p className="mt-2 text-sm font-medium text-red-900">
+                For your safety, meet in a busy public location on
+                campus and let someone know where you are going.
+            </p>
         </div>
     );
 }
@@ -117,10 +141,40 @@ function Account() {
 
                 setProfile(profileData);
                 setItems(userItems);
-                setReceivedClaims(sortNewestFirst(receivedClaimsData));
-                setSubmittedClaims(sortNewestFirst(submittedClaimsData));
+                markModerationNoticesViewed(
+                    userItems
+                ).catch((error) => {
+                    console.error(
+                        "Unable to mark moderation notices as viewed:",
+                        error
+                    );
+                });
+                setReceivedClaims(
+                sortNewestFirst(receivedClaimsData)
+            );
+            setSubmittedClaims(
+                sortNewestFirst(submittedClaimsData)
+            );
 
-                setFirstName(profileData?.firstName || "");
+            markReceivedClaimsViewed(
+                receivedClaimsData
+            ).catch((error) => {
+                console.error(
+                    "Unable to mark received requests as viewed:",
+                    error
+                );
+            });
+
+            markSubmittedClaimResponsesViewed(
+                submittedClaimsData
+            ).catch((error) => {
+                console.error(
+                    "Unable to mark submitted responses as viewed:",
+                    error
+                );
+            });
+
+            setFirstName(profileData?.firstName || "");
                 setLastName(profileData?.lastName || "");
                 setPhoneNumber(profileData?.phoneNumber || "");
                 setContactPreference(profileData?.contactPreference || "email");
@@ -134,6 +188,33 @@ function Account() {
 
         loadAccount();
     }, []);
+        useEffect(() => {
+            if (isLoading) {
+                return;
+            }
+
+            const targetId =
+                window.location.hash.replace("#", "");
+
+            if (!targetId) {
+                return;
+            }
+
+            const animationFrameId =
+                window.requestAnimationFrame(() => {
+                    document
+                        .getElementById(targetId)
+                        ?.scrollIntoView({
+                            behavior: "smooth",
+                            block: "start",
+                        });
+                });
+
+            return () =>
+                window.cancelAnimationFrame(
+                    animationFrameId
+                );
+        }, [isLoading]);
 
     function formatPhoneNumber(phoneValue) {
         if (!phoneValue) {
@@ -167,6 +248,7 @@ function Account() {
             pending: "Pending",
             accepted: "Accepted",
             rejected: "Rejected",
+            closed: "Closed",
         };
 
         return statusLabels[status] || "Unknown";
@@ -190,6 +272,14 @@ function Account() {
         const digitsOnly = phoneValue.replace(/\D/g, "");
         return digitsOnly.length === 10;
     }
+
+    const isProfileUnchanged =
+        firstName.trim() === (profile?.firstName || "") &&
+        lastName.trim() === (profile?.lastName || "") &&
+        phoneNumber.replace(/\D/g, "") ===
+            (profile?.phoneNumber || "").replace(/\D/g, "") &&
+        contactPreference ===
+            (profile?.contactPreference || "email");
 
     function handleCancelEdit() {
         setFirstName(profile.firstName || "");
@@ -390,7 +480,8 @@ function Account() {
             setSuccessMessage("");
 
             await markItemResolved(
-                itemPendingResolution.id
+                itemPendingResolution.id,
+                currentUser.uid
             );
 
             setItems((currentItems) =>
@@ -647,8 +738,8 @@ function Account() {
                     <div className="mt-6 flex gap-3">
                         <button
                             type="submit"
-                            disabled={isSaving}
-                            className="border border-transparent rounded-xl bg-[#A6192E] px-5 py-2.5 font-semibold text-white disabled:opacity-60 transition hover:bg-white hover:text-[#A6192E] hover:border-[#A6192E]"
+                            disabled={isSaving || isProfileUnchanged}
+                            className="rounded-xl border border-transparent bg-[#A6192E] px-5 py-2.5 font-semibold text-white transition hover:bg-white hover:text-[#A6192E] hover:border-[#A6192E] disabled:cursor-not-allowed disabled:border-slate-300 disabled:bg-slate-300 disabled:text-slate-500 disabled:hover:border-slate-300 disabled:hover:bg-slate-300 disabled:hover:text-slate-500"
                         >
                             {isSaving ? "Saving..." : "Save Changes"}
                         </button>
@@ -733,7 +824,10 @@ function Account() {
                 </section>
             )}
 
-            <section className="mt-10">
+            <section
+                id="received-requests"
+                className="mt-10 scroll-mt-24"
+            >
                 <h2 className="text-2xl font-semibold text-slate-900">
                     Requests Received
                 </h2>
@@ -770,17 +864,27 @@ function Account() {
                                         </p>
                                     </div>
 
-                                    <span
-                                        className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                                            claim.status === "accepted"
-                                                ? "bg-green-100 text-green-800"
-                                                : claim.status === "rejected"
-                                                ? "bg-red-100 text-red-800"
-                                                : "bg-amber-100 text-amber-800"
-                                        }`}
-                                    >
-                                        {formatClaimStatus(claim.status)}
-                                    </span>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        {claim.ownerViewed === false && (
+                                            <span className="rounded-full bg-blue-600 px-3 py-1 text-xs font-semibold text-white">
+                                                New request
+                                            </span>
+                                        )}
+
+                                        <span
+                                            className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                                                claim.status === "accepted"
+                                                    ? "bg-green-100 text-green-800"
+                                                    : claim.status === "rejected"
+                                                    ? "bg-red-100 text-red-800"
+                                                    : claim.status === "closed"
+                                                    ? "bg-slate-200 text-slate-700"
+                                                    : "bg-amber-100 text-amber-800"
+                                            }`}
+                                        >
+                                            {formatClaimStatus(claim.status)}
+                                        </span>
+                                    </div>
                                 </div>
 
                                 <p className="mt-4 text-sm text-slate-700">
@@ -853,11 +957,13 @@ function Account() {
                                                 Email: {claim.claimantEmail}
                                             </p>
                                         )}
+                                        <SafeMeetupNotice />
                                     </div>
                                 )}
 
                                 <Link
                                     to={`/items/${claim.itemId}`}
+                                    state={{ from: "account" }}
                                     className="mt-4 inline-block text-sm font-semibold text-red-600 hover:text-red-700"
                                 >
                                     View Report →
@@ -902,17 +1008,28 @@ function Account() {
                                         </p>
                                     </div>
 
-                                    <span
-                                        className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                                            claim.status === "accepted"
-                                                ? "bg-green-100 text-green-800"
-                                                : claim.status === "rejected"
-                                                ? "bg-red-100 text-red-800"
-                                                : "bg-amber-100 text-amber-800"
-                                        }`}
-                                    >
-                                        {formatClaimStatus(claim.status)}
-                                    </span>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        {claim.status !== "pending" &&
+                                            claim.claimantViewedResponse === false && (
+                                                <span className="rounded-full bg-blue-600 px-3 py-1 text-xs font-semibold text-white">
+                                                    New response
+                                                </span>
+                                            )}
+
+                                        <span
+                                            className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                                                claim.status === "accepted"
+                                                    ? "bg-green-100 text-green-800"
+                                                    : claim.status === "rejected"
+                                                    ? "bg-red-100 text-red-800"
+                                                    : claim.status === "closed"
+                                                    ? "bg-slate-200 text-slate-700"
+                                                    : "bg-amber-100 text-amber-800"
+                                            }`}
+                                        >
+                                            {formatClaimStatus(claim.status)}
+                                        </span>
+                                    </div>
                                 </div>
 
                                 <p className="mt-4 text-sm text-slate-700">
@@ -932,6 +1049,14 @@ function Account() {
                                 {claim.status === "rejected" && (
                                     <p className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
                                         The poster did not approve this request.
+                                    </p>
+                                )}
+
+                                {claim.status === "closed" && (
+                                    <p className="mt-4 rounded-xl border border-slate-300 bg-slate-100 px-4 py-3 text-sm text-slate-700">
+                                        {claim.closedReason === "moderation"
+                                            ? "This request was closed because an administrator removed the item report."
+                                            : "This report was marked as resolved before your request was accepted."}
                                     </p>
                                 )}
 
@@ -957,11 +1082,13 @@ function Account() {
                                                     )}
                                                 </p>
                                             )}
+                                            <SafeMeetupNotice />
                                         </div>
                                     )}
 
                                 <Link
                                     to={`/items/${claim.itemId}`}
+                                    state={{ from: "account" }}
                                     className="mt-4 inline-block text-sm font-semibold text-red-600 hover:text-red-700"
                                 >
                                     View Report →
@@ -1139,6 +1266,11 @@ function Account() {
                                 requests for this report.
                             </p>
 
+                            <p>
+                                Any pending requests will be closed, and those
+                                users will be notified that the report was resolved.
+                            </p>
+
                             <p className="font-medium text-slate-900">
                                 This action cannot currently be undone.
                             </p>
@@ -1230,7 +1362,10 @@ function Account() {
                 </div>
             )}
 
-            <h2 className="mt-7 text-2xl font-semibold">
+            <h2
+                id="my-reports"
+                className="mt-7 scroll-mt-24 text-2xl font-semibold"
+            >
                 My Reports
             </h2>
 
@@ -1250,6 +1385,43 @@ function Account() {
                             <h3 className="text-lg font-semibold">
                                 {item.title}
                             </h3>
+
+                            {item.moderationStatus === "pending_review" && (
+                                <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3">
+                                    <p className="text-sm font-semibold text-amber-900">
+                                        This report is under review
+                                    </p>
+
+                                    <p className="mt-1 text-sm text-amber-800">
+                                        It is temporarily hidden from Browse while an administrator reviews it.
+                                    </p>
+                                </div>
+                            )}
+
+                            {item.moderationStatus === "hidden" && (
+                                <div className="mt-3 rounded-xl border border-red-300 bg-red-50 px-4 py-3">
+                                    <p className="text-sm font-semibold text-red-900">
+                                        This report was removed
+                                    </p>
+
+                                    <p className="mt-1 text-sm text-red-800">
+                                        An administrator removed this report because it violated the site's posting guidelines.
+                                    </p>
+                                </div>
+                            )}
+
+                            {item.moderationStatus === "visible" &&
+                                item.ownerViewedModeration === false && (
+                                    <div className="mt-3 rounded-xl border border-blue-300 bg-blue-50 px-4 py-3">
+                                        <p className="text-sm font-semibold text-blue-900">
+                                            This report was restored
+                                        </p>
+
+                                        <p className="mt-1 text-sm text-blue-800">
+                                            An administrator restored this report. If it is still open, it is publicly visible in Browse again.
+                                        </p>
+                                    </div>
+                                )}
 
                             <p className="mt-1 text-sm text-slate-600">
                                 {item.description}
@@ -1283,12 +1455,15 @@ function Account() {
                             <div className="mt-5 flex flex-wrap gap-3">
                                 <Link
                                     to={`/items/${item.id}`}
+                                    state={{ from: "account" }}
                                     className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
                                 >
                                     View Report
                                 </Link>
 
-                                {item.status === "open" && (
+                                {item.status === "open" &&
+                                    item.moderationStatus !== "pending_review" &&
+                                    item.moderationStatus !== "hidden" && (
                                     <button
                                         type="button"
                                         onClick={() =>
@@ -1303,12 +1478,16 @@ function Account() {
                                     </button>
                                 )}
 
-                                <Link
-                                    to={`/items/${item.id}/edit`}
-                                    className="rounded-xl border border-blue-300 px-4 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-50"
-                                >
-                                    Edit Report
-                                </Link>
+                                {item.status !== "resolved" &&
+                                    item.moderationStatus !== "pending_review" &&
+                                    item.moderationStatus !== "hidden" && (
+                                    <Link
+                                        to={`/items/${item.id}/edit`}
+                                        className="rounded-xl border border-blue-300 px-4 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-50"
+                                    >
+                                        Edit Report
+                                    </Link>
+                                )}
 
                                 <button
                                     type="button"

@@ -10,11 +10,23 @@ import {
     deleteDoc,
     setDoc,
     serverTimestamp,
+    onSnapshot,
+    writeBatch,
+    deleteField,
 } from "firebase/firestore";
 
 import { db } from "./config";
 
 export async function createItem(itemData) {
+    const ownerFirstName =
+        itemData.ownerFirstName?.trim();
+
+    if (!ownerFirstName) {
+        throw new Error(
+            "The report owner’s first name is required."
+        );
+    }
+
     const itemsRef = collection(db, "items");
 
     const newItem = {
@@ -25,8 +37,11 @@ export async function createItem(itemData) {
         location: itemData.location,
         type: itemData.type,
         status: "open",
+        moderationStatus: "visible",
+        ownerViewedModeration: true,
         imageUrl: itemData.imageUrl || "",
         ownerId: itemData.ownerId,
+        ownerFirstName,
         dateReported: itemData.dateReported,
         createdAt: serverTimestamp(),
     };
@@ -45,31 +60,47 @@ export async function getAllItems() {
     );
     const querySnapshot = await getDocs(publicItemsQuery);
 
-    const items = querySnapshot.docs.map((itemDoc) => ({
+    return querySnapshot.docs.map((itemDoc) => ({
         id: itemDoc.id,
         ...itemDoc.data(),
     }));
-
-    return items;
 }
 
 export async function getItemsByType(type) {
-  if (type !== "lost" && type !== "found") {
-    throw new Error('Item type must be either "lost" or "found".');
-  }
+    if (type !== "lost" && type !== "found") {
+        throw new Error(
+            'Item type must be either "lost" or "found".'
+        );
+    }
 
-  const itemsRef = collection(db, "items");
-  const q = query(itemsRef, where("type", "==", type));
-  const querySnapshot = await getDocs(q);
-  const items = querySnapshot.docs.map((itemDoc) => ({
+    const itemsRef = collection(db, "items");
+
+    const itemsQuery = query(
+        itemsRef,
+        where("type", "==", type),
+        where("status", "==", "open"),
+        where(
+            "moderationStatus",
+            "==",
+            "visible"
+        )
+    );
+
+    const querySnapshot = await getDocs(
+        itemsQuery
+    );
+
+    return querySnapshot.docs.map((itemDoc) => ({
         id: itemDoc.id,
         ...itemDoc.data(),
-  }));
-
-  return items;
+    }));
 }
 
 export async function getItemById(id) {
+    if (!id) {
+        throw new Error("An item ID is required.");
+    }
+
     const itemRef = doc(db, "items", id);
     const itemSnapshot = await getDoc(itemRef);
 
@@ -83,16 +114,299 @@ export async function getItemById(id) {
     };
 }
 
+export async function checkIsAdmin(userId) {
+    if (!userId) {
+        return false;
+    }
+
+    const adminRef = doc(db, "admins", userId);
+    const adminSnapshot = await getDoc(adminRef);
+
+    return adminSnapshot.exists();
+}
+
+export async function getReportsForAdmin() {
+    const reportsRef = collection(db, "reports");
+    const querySnapshot = await getDocs(reportsRef);
+
+    return querySnapshot.docs.map((reportDoc) => ({
+        id: reportDoc.id,
+        ...reportDoc.data(),
+    }));
+}
+
+export async function dismissModerationReport(
+    reportId,
+    itemId,
+    adminId
+) {
+    if (!reportId || !itemId) {
+        throw new Error(
+            "A moderation report and item ID are required."
+        );
+    }
+
+    if (!adminId) {
+        throw new Error(
+            "An administrator ID is required."
+        );
+    }
+
+    const reportRef = doc(
+        db,
+        "reports",
+        reportId
+    );
+
+    const itemRef = doc(
+        db,
+        "items",
+        itemId
+    );
+
+    const batch = writeBatch(db);
+
+    batch.update(reportRef, {
+        status: "dismissed",
+        reviewedBy: adminId,
+        reviewedAt: serverTimestamp(),
+    });
+
+    batch.update(itemRef, {
+        moderationStatus: "visible",
+        ownerViewedModeration: true,
+        moderatedBy: adminId,
+        moderatedAt: serverTimestamp(),
+    });
+    await batch.commit();
+}
+
+export async function hideModeratedItem(
+    reportId,
+    itemId,
+    adminId
+) {
+    if (!reportId || !itemId) {
+        throw new Error(
+            "A moderation report and item ID are required."
+        );
+    }
+
+    if (!adminId) {
+        throw new Error(
+            "An administrator ID is required."
+        );
+    }
+
+    const reportRef = doc(
+        db,
+        "reports",
+        reportId
+    );
+
+    const itemRef = doc(
+        db,
+        "items",
+        itemId
+    );
+
+    const claimsRef = collection(db, "claims");
+    const itemClaimsQuery = query(
+        claimsRef,
+        where("itemId", "==", itemId)
+    );
+
+    const claimsSnapshot = await getDocs(
+        itemClaimsQuery
+    );
+
+    const pendingClaims = claimsSnapshot.docs.filter(
+        (claimDoc) =>
+            claimDoc.data().status === "pending"
+    );
+
+    const batch = writeBatch(db);
+
+    batch.update(reportRef, {
+        status: "actioned",
+        reviewedBy: adminId,
+        reviewedAt: serverTimestamp(),
+    });
+
+    batch.update(itemRef, {
+        moderationStatus: "hidden",
+        ownerViewedModeration: false,
+        moderatedBy: adminId,
+        moderatedAt: serverTimestamp(),
+    });
+
+    pendingClaims.forEach((claimDoc) => {
+        batch.update(claimDoc.ref, {
+            status: "closed",
+            closedReason: "moderation",
+            ownerContact: null,
+            claimantViewedResponse: false,
+            respondedAt: serverTimestamp(),
+        });
+    });
+
+    await batch.commit();
+
+    return pendingClaims.length;
+}
+
+export async function restoreModeratedItem(
+    reportId,
+    itemId,
+    adminId
+) {
+    if (!reportId || !itemId) {
+        throw new Error(
+            "A moderation report and item ID are required."
+        );
+    }
+
+    if (!adminId) {
+        throw new Error(
+            "An administrator ID is required."
+        );
+    }
+
+    const reportRef = doc(
+        db,
+        "reports",
+        reportId
+    );
+
+    const itemRef = doc(
+        db,
+        "items",
+        itemId
+    );
+
+    const batch = writeBatch(db);
+
+    batch.update(reportRef, {
+        status: "restored",
+        reviewedBy: adminId,
+        reviewedAt: serverTimestamp(),
+    });
+
+    batch.update(itemRef, {
+        moderationStatus: "visible",
+        ownerViewedModeration: false,
+        moderatedBy: adminId,
+        moderatedAt: serverTimestamp(),
+    });
+
+    await batch.commit();
+}
+
 export async function updateItem(id, updateData) {
+    if (!id) {
+        throw new Error("An item ID is required.");
+    }
+
     const itemRef = doc(db, "items", id);
 
     await updateDoc(itemRef, updateData);
 }
 
 export async function deleteItem(id) {
+    if (!id) {
+        throw new Error("An item ID is required.");
+    }
+
     const itemRef = doc(db, "items", id);
 
     await deleteDoc(itemRef);
+}
+
+export async function createReport(reportData) {
+    if (!reportData.itemId) {
+        throw new Error("An item ID is required.");
+    }
+
+    if (!reportData.reporterId) {
+        throw new Error("You must be logged in to report an item.");
+    }
+
+    const reportsRef = collection(db, "reports");
+    const reporterQuery = query(
+        reportsRef,
+        where("reporterId", "==", reportData.reporterId)
+    );
+
+    const reporterReportsSnapshot = await getDocs(
+        reporterQuery
+    );
+
+    const existingReport =
+        reporterReportsSnapshot.docs.find(
+            (reportDoc) =>
+                reportDoc.data().itemId === reportData.itemId
+        );
+
+    if (existingReport) {
+        throw new Error("ALREADY_REPORTED");
+    }
+
+    const reportId =
+    `${reportData.itemId}_${reportData.reporterId}`;
+
+    const reportRef = doc(
+        db,
+        "reports",
+        reportId
+    );
+
+    const itemRef = doc(
+        db,
+        "items",
+        reportData.itemId
+    );
+
+    const itemSnapshot = await getDoc(itemRef);
+
+    if (!itemSnapshot.exists()) {
+        throw new Error("ITEM_NOT_FOUND");
+    }
+
+    const item = itemSnapshot.data();
+    const moderationStatus =
+        item.moderationStatus || "visible";
+
+    if (
+        item.status === "resolved" ||
+        moderationStatus === "pending_review" ||
+        moderationStatus === "hidden"
+    ) {
+        throw new Error("ITEM_UNAVAILABLE");
+    }
+
+    const batch = writeBatch(db);
+
+    batch.set(reportRef, {
+        itemId: reportData.itemId,
+        itemTitle: reportData.itemTitle,
+        itemOwnerId: reportData.itemOwnerId,
+        reporterId: reportData.reporterId,
+        reporterEmail: reportData.reporterEmail,
+        reason: reportData.reason,
+        details: reportData.details || "",
+        status: "pending",
+        createdAt: serverTimestamp(),
+    });
+
+    batch.update(itemRef, {
+        moderationStatus: "pending_review",
+        ownerViewedModeration: false,
+        flaggedAt: serverTimestamp(),
+    });
+
+    await batch.commit();
+
+    return reportId;
 }
 
 export async function getUserProfile(userId) {
@@ -161,7 +475,9 @@ export async function createClaim(claimData) {
     }
 
     if (claimData.ownerId === claimData.claimantId) {
-        throw new Error("You cannot submit a request for your own report.");
+        throw new Error(
+            "You cannot submit a request for your own report."
+        );
     }
 
     const trimmedMessage = claimData.message?.trim();
@@ -173,7 +489,6 @@ export async function createClaim(claimData) {
     }
 
     const claimsRef = collection(db, "claims");
-
     const claimantQuery = query(
         claimsRef,
         where("claimantId", "==", claimData.claimantId)
@@ -186,7 +501,14 @@ export async function createClaim(claimData) {
             claimDoc.data().itemId === claimData.itemId
     );
 
-    if (existingClaim) {
+    const canResubmitClosedRequest =
+        existingClaim &&
+        existingClaim.data().status === "closed";
+
+    if (
+        existingClaim &&
+        !canResubmitClosedRequest
+    ) {
         throw new Error(
             "You have already submitted a request for this report."
         );
@@ -194,6 +516,31 @@ export async function createClaim(claimData) {
 
     const claimId = `${claimData.itemId}_${claimData.claimantId}`;
     const claimRef = doc(db, "claims", claimId);
+
+    if (canResubmitClosedRequest) {
+        await updateDoc(existingClaim.ref, {
+            claimantFirstName:
+                claimData.claimantFirstName,
+            claimantEmail:
+                claimData.claimantEmail,
+            claimantContact:
+                claimData.claimantContact,
+
+            message: trimmedMessage,
+            status: "pending",
+
+            ownerContact: null,
+
+            ownerViewed: false,
+            claimantViewedResponse: true,
+
+            createdAt: serverTimestamp(),
+            respondedAt: null,
+            closedReason: deleteField(),
+        });
+
+        return existingClaim.id;
+    }
 
     const newClaim = {
         itemId: claimData.itemId,
@@ -212,6 +559,9 @@ export async function createClaim(claimData) {
         status: "pending",
 
         ownerContact: null,
+
+        ownerViewed: false,
+        claimantViewedResponse: true,
 
         createdAt: serverTimestamp(),
         respondedAt: null,
@@ -239,6 +589,154 @@ export async function getClaimsByOwner(ownerId) {
         id: claimDoc.id,
         ...claimDoc.data(),
     }));
+}
+
+export function subscribeToModerationNotificationCount(
+    ownerId,
+    onCountChange,
+    onError
+) {
+    if (!ownerId) {
+        throw new Error("An owner ID is required.");
+    }
+
+    const itemsRef = collection(db, "items");
+
+    const ownerItemsQuery = query(
+        itemsRef,
+        where("ownerId", "==", ownerId)
+    );
+
+    return onSnapshot(
+        ownerItemsQuery,
+        (querySnapshot) => {
+            const notificationCount =
+                querySnapshot.docs.filter((itemDoc) => {
+                    const item = itemDoc.data();
+
+                    return (
+                        item.ownerViewedModeration === false
+                    );
+                }).length;
+
+            onCountChange(notificationCount);
+        },
+        (error) => {
+            console.error(
+                "Moderation notification error:",
+                error
+            );
+
+            onError?.(error);
+        }
+    );
+}
+
+export async function markModerationNoticesViewed(
+    items
+) {
+    const unreadModerationItems = items.filter(
+        (item) =>
+            item.ownerViewedModeration === false
+    );
+
+    if (unreadModerationItems.length === 0) {
+        return;
+    }
+
+    const batch = writeBatch(db);
+
+    unreadModerationItems.forEach((item) => {
+        const itemRef = doc(db, "items", item.id);
+
+        batch.update(itemRef, {
+            ownerViewedModeration: true,
+        });
+    });
+
+    await batch.commit();
+}
+
+export function subscribeToClaimNotificationCount(
+    userId,
+    onCountChange,
+    onError
+) {
+    if (!userId) {
+        throw new Error("A user ID is required.");
+    }
+
+    const claimsRef = collection(db, "claims");
+
+    const ownerQuery = query(
+        claimsRef,
+        where("ownerId", "==", userId)
+    );
+
+    const claimantQuery = query(
+        claimsRef,
+        where("claimantId", "==", userId)
+    );
+
+    let newRequestCount = 0;
+    let newResponseCount = 0;
+
+    function sendUpdatedCount() {
+        onCountChange(
+            newRequestCount + newResponseCount
+        );
+    }
+
+    const unsubscribeFromOwnerClaims = onSnapshot(
+        ownerQuery,
+        (querySnapshot) => {
+            newRequestCount =
+                querySnapshot.docs.filter(
+                    (claimDoc) =>
+                        claimDoc.data().ownerViewed === false
+                ).length;
+
+            sendUpdatedCount();
+        },
+        (error) => {
+            console.error(
+                "Received-request notification error:",
+                error
+            );
+
+            onError?.(error);
+        }
+    );
+
+    const unsubscribeFromClaimantClaims = onSnapshot(
+        claimantQuery,
+        (querySnapshot) => {
+            newResponseCount =
+                querySnapshot.docs.filter((claimDoc) => {
+                    const claim = claimDoc.data();
+
+                    return (
+                        claim.status !== "pending" &&
+                        claim.claimantViewedResponse === false
+                    );
+                }).length;
+
+            sendUpdatedCount();
+        },
+        (error) => {
+            console.error(
+                "Submitted-request notification error:",
+                error
+            );
+
+            onError?.(error);
+        }
+    );
+
+    return () => {
+        unsubscribeFromOwnerClaims();
+        unsubscribeFromClaimantClaims();
+    };
 }
 
 export async function getClaimsByClaimant(claimantId) {
@@ -287,19 +785,98 @@ export async function updateClaimStatus(
         status,
         ownerContact:
             status === "accepted" ? ownerContact : null,
+        claimantViewedResponse: false,
         respondedAt: serverTimestamp(),
     });
 }
 
-export async function markItemResolved(itemId) {
+export async function markReceivedClaimsViewed(claims) {
+    const unreadClaims = claims.filter(
+        (claim) => claim.ownerViewed === false
+    );
+
+    await Promise.all(
+        unreadClaims.map((claim) => {
+            const claimRef = doc(db, "claims", claim.id);
+
+            return updateDoc(claimRef, {
+                ownerViewed: true,
+            });
+        })
+    );
+}
+
+export async function markSubmittedClaimResponsesViewed(
+    claims
+) {
+    const unreadResponses = claims.filter(
+        (claim) =>
+            claim.status !== "pending" &&
+            claim.claimantViewedResponse === false
+    );
+
+    await Promise.all(
+        unreadResponses.map((claim) => {
+            const claimRef = doc(db, "claims", claim.id);
+
+            return updateDoc(claimRef, {
+                claimantViewedResponse: true,
+            });
+        })
+    );
+}
+
+export async function markItemResolved(
+    itemId,
+    ownerId
+) {
     if (!itemId) {
         throw new Error("An item ID is required.");
     }
 
-    const itemRef = doc(db, "items", itemId);
+    if (!ownerId) {
+        throw new Error("An owner ID is required.");
+    }
 
-    await updateDoc(itemRef, {
+    const itemRef = doc(db, "items", itemId);
+    const claimsRef = collection(db, "claims");
+
+    const ownerClaimsQuery = query(
+        claimsRef,
+        where("ownerId", "==", ownerId)
+    );
+
+    const claimsSnapshot = await getDocs(
+        ownerClaimsQuery
+    );
+
+    const pendingItemClaims =
+        claimsSnapshot.docs.filter((claimDoc) => {
+            const claim = claimDoc.data();
+
+            return (
+                claim.itemId === itemId &&
+                claim.status === "pending"
+            );
+        });
+
+    const batch = writeBatch(db);
+
+    batch.update(itemRef, {
         status: "resolved",
         resolvedAt: serverTimestamp(),
     });
+
+    pendingItemClaims.forEach((claimDoc) => {
+        batch.update(claimDoc.ref, {
+            status: "closed",
+            ownerContact: null,
+            claimantViewedResponse: false,
+            respondedAt: serverTimestamp(),
+        });
+    });
+
+    await batch.commit();
+
+    return pendingItemClaims.length;
 }
