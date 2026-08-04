@@ -104,8 +104,12 @@ function ItemList() {
   const normalizedSearch = searchTerm.trim().toLowerCase();
 
   const filteredItems = items.filter((item) => {
-    if (item.status === "resolved") {
-        return false;
+    if (
+      item.status === "resolved" ||
+      item.moderationStatus === "pending_review" ||
+      item.moderationStatus === "hidden"
+    ) {
+      return false;
     }
 
     const title = item.title?.toLowerCase() || "";
@@ -309,6 +313,19 @@ function ItemList() {
                         <ReportPost
                           item={item}
                           showAsMenu
+                          onReported={(reportedItemId) => {
+                            setItems((currentItems) =>
+                              currentItems.map((currentItem) =>
+                                currentItem.id === reportedItemId
+                                  ? {
+                                      ...currentItem,
+                                      moderationStatus:
+                                        "pending_review",
+                                    }
+                                  : currentItem
+                              )
+                            );
+                          }}
                         />
                       )}
                     </div>

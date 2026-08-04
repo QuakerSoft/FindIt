@@ -11,7 +11,11 @@ const REPORT_REASONS = [
   "Other",
 ];
 
-function ReportPost({ item, showAsMenu = false }) {
+function ReportPost({
+  item,
+  showAsMenu = false,
+  onReported,
+}) {
   const [isOpen, setIsOpen] = useState(false);
   const [reason, setReason] = useState("");
   const [details, setDetails] = useState("");
@@ -130,12 +134,17 @@ function ReportPost({ item, showAsMenu = false }) {
       setWasSubmitted(true);
       setReason("");
       setDetails("");
+      onReported?.(item.id);
     } catch (error) {
       console.error("Report submission error:", error);
 
       if (error.message === "ALREADY_REPORTED") {
         setMessage(
           "You have already reported this post. Our team will review your original report."
+        );
+      } else if (error.message === "ITEM_UNAVAILABLE") {
+        setMessage(
+          "This post is no longer available for reporting."
         );
       } else if (error.code === "permission-denied") {
         setMessage(

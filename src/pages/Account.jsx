@@ -12,6 +12,7 @@ import {
     markItemResolved,
     markReceivedClaimsViewed,
     markSubmittedClaimResponsesViewed,
+    markModerationNoticesViewed,
 } from "../firebase/firestore";
 
 function ReportImage({ item }) {
@@ -140,6 +141,14 @@ function Account() {
 
                 setProfile(profileData);
                 setItems(userItems);
+                markModerationNoticesViewed(
+                    userItems
+                ).catch((error) => {
+                    console.error(
+                        "Unable to mark moderation notices as viewed:",
+                        error
+                    );
+                });
                 setReceivedClaims(
                 sortNewestFirst(receivedClaimsData)
             );
@@ -180,26 +189,31 @@ function Account() {
         loadAccount();
     }, []);
         useEffect(() => {
-            if (
-                isLoading ||
-                window.location.hash !== "#received-requests"
-            ) {
+            if (isLoading) {
                 return;
             }
 
-            const animationFrameId = window.requestAnimationFrame(
-                () => {
+            const targetId =
+                window.location.hash.replace("#", "");
+
+            if (!targetId) {
+                return;
+            }
+
+            const animationFrameId =
+                window.requestAnimationFrame(() => {
                     document
-                        .getElementById("received-requests")
+                        .getElementById(targetId)
                         ?.scrollIntoView({
                             behavior: "smooth",
                             block: "start",
                         });
-                }
-            );
+                });
 
             return () =>
-                window.cancelAnimationFrame(animationFrameId);
+                window.cancelAnimationFrame(
+                    animationFrameId
+                );
         }, [isLoading]);
 
     function formatPhoneNumber(phoneValue) {
@@ -1040,7 +1054,9 @@ function Account() {
 
                                 {claim.status === "closed" && (
                                     <p className="mt-4 rounded-xl border border-slate-300 bg-slate-100 px-4 py-3 text-sm text-slate-700">
-                                        This report was marked as resolved before your request was accepted.
+                                        {claim.closedReason === "moderation"
+                                            ? "This request was closed because an administrator removed the item report."
+                                            : "This report was marked as resolved before your request was accepted."}
                                     </p>
                                 )}
 
@@ -1346,7 +1362,10 @@ function Account() {
                 </div>
             )}
 
-            <h2 className="mt-7 text-2xl font-semibold">
+            <h2
+                id="my-reports"
+                className="mt-7 scroll-mt-24 text-2xl font-semibold"
+            >
                 My Reports
             </h2>
 
@@ -1366,6 +1385,43 @@ function Account() {
                             <h3 className="text-lg font-semibold">
                                 {item.title}
                             </h3>
+
+                            {item.moderationStatus === "pending_review" && (
+                                <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3">
+                                    <p className="text-sm font-semibold text-amber-900">
+                                        This report is under review
+                                    </p>
+
+                                    <p className="mt-1 text-sm text-amber-800">
+                                        It is temporarily hidden from Browse while an administrator reviews it.
+                                    </p>
+                                </div>
+                            )}
+
+                            {item.moderationStatus === "hidden" && (
+                                <div className="mt-3 rounded-xl border border-red-300 bg-red-50 px-4 py-3">
+                                    <p className="text-sm font-semibold text-red-900">
+                                        This report was removed
+                                    </p>
+
+                                    <p className="mt-1 text-sm text-red-800">
+                                        An administrator removed this report because it violated the site's posting guidelines.
+                                    </p>
+                                </div>
+                            )}
+
+                            {item.moderationStatus === "visible" &&
+                                item.ownerViewedModeration === false && (
+                                    <div className="mt-3 rounded-xl border border-blue-300 bg-blue-50 px-4 py-3">
+                                        <p className="text-sm font-semibold text-blue-900">
+                                            This report was restored
+                                        </p>
+
+                                        <p className="mt-1 text-sm text-blue-800">
+                                            An administrator restored this report. If it is still open, it is publicly visible in Browse again.
+                                        </p>
+                                    </div>
+                                )}
 
                             <p className="mt-1 text-sm text-slate-600">
                                 {item.description}
@@ -1405,7 +1461,9 @@ function Account() {
                                     View Report
                                 </Link>
 
-                                {item.status === "open" && (
+                                {item.status === "open" &&
+                                    item.moderationStatus !== "pending_review" &&
+                                    item.moderationStatus !== "hidden" && (
                                     <button
                                         type="button"
                                         onClick={() =>
@@ -1420,7 +1478,9 @@ function Account() {
                                     </button>
                                 )}
 
-                                {item.status !== "resolved" && (
+                                {item.status !== "resolved" &&
+                                    item.moderationStatus !== "pending_review" &&
+                                    item.moderationStatus !== "hidden" && (
                                     <Link
                                         to={`/items/${item.id}/edit`}
                                         className="rounded-xl border border-blue-300 px-4 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-50"
