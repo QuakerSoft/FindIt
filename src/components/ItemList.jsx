@@ -6,6 +6,24 @@ import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "../firebase/config";
 import ReportActionsMenu from "./ReportActionsMenu";
 
+const fieldClasses =
+  "w-full rounded-xl border border-[#E5E0D8] bg-white px-3 py-2.5 text-sm text-[#1C1B19] outline-none transition placeholder:text-[#6B6560]/60 focus:border-[#A6192E] focus:ring-4 focus:ring-[#A6192E]/10";
+
+const labelClasses = "block text-xs font-semibold uppercase tracking-wide text-[#6B6560]";
+
+function getTypeBadgeClasses(type) {
+  return type === "found"
+    ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+    : "bg-[#A6192E]/10 text-[#A6192E] border border-[#A6192E]/20";
+}
+
+function getStatusBadgeClasses(status) {
+  if (status === "resolved" || status === "claimed") {
+    return "bg-emerald-50 text-emerald-700 border border-emerald-200";
+  }
+  return "bg-[#FAF7F2] text-[#6B6560] border border-[#E5E0D8]";
+}
+
 function ItemList() {
   const [items, setItems] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -43,23 +61,38 @@ function ItemList() {
   if (isLoading) {
     return (
       <section className="flex flex-col items-center justify-center py-20">
-        <div className="h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-red-600"></div>
-        <p className="mt-4 text-slate-600">Fetching campus reports...</p>
+        <div className="h-10 w-10 animate-spin rounded-full border-4 border-[#E5E0D8] border-t-[#A6192E]"></div>
+        <p className="mt-4 text-sm text-[#6B6560]">Fetching campus reports...</p>
       </section>
     );
   }
 
   if (errorMessage) {
-    return <p>{errorMessage}</p>;
+    return (
+      <section className="rounded-2xl border border-red-200 bg-red-50 px-6 py-8 text-center text-sm text-red-700">
+        {errorMessage}
+      </section>
+    );
   }
 
   if (items.length === 0) {
     return (
-      <section>
-        <div aria-hidden="true">📦</div>
-        <h2>No lost or found reports yet.</h2>
-        <p>Be the first to report a lost or found item!</p>
-        <Link to="/post">Post an Item</Link>
+      <section className="flex flex-col items-center rounded-3xl border border-dashed border-[#E5E0D8] bg-white px-6 py-16 text-center">
+        <div className="text-4xl" aria-hidden="true">
+          📦
+        </div>
+        <h2 className="mt-4 font-[Archivo_Black] text-xl text-[#1C1B19]">
+          No lost or found reports yet.
+        </h2>
+        <p className="mt-2 text-sm text-[#6B6560]">
+          Be the first to report a lost or found item!
+        </p>
+        <Link
+          to="/post"
+          className="mt-5 rounded-sm border border-transparent bg-[#A6192E] px-6 py-2.5 text-sm font-medium text-white transition hover:border-[#A6192E] hover:bg-white hover:text-[#A6192E]"
+        >
+          Post an Item
+        </Link>
       </section>
     );
   }
@@ -84,19 +117,29 @@ function ItemList() {
   });
 
   const sortedItems = [...filteredItems].sort((itemA, itemB) => {
-  const timeA = itemA.createdAt?.toDate
-    ? itemA.createdAt.toDate().getTime()
-    : 0;
+    const timeA = itemA.createdAt?.toDate
+      ? itemA.createdAt.toDate().getTime()
+      : 0;
 
-  const timeB = itemB.createdAt?.toDate
-    ? itemB.createdAt.toDate().getTime()
-    : 0;
+    const timeB = itemB.createdAt?.toDate
+      ? itemB.createdAt.toDate().getTime()
+      : 0;
 
-  return sortOrder === "newest"
-    ? timeB - timeA
-    : timeA - timeB;
+    return sortOrder === "newest"
+      ? timeB - timeA
+      : timeA - timeB;
   });
-  
+
+  const hasActiveFilters =
+    searchTerm !== "" || typeFilter !== "all" || categoryFilter !== "all";
+
+  function clearFilters() {
+    setSearchTerm("");
+    setTypeFilter("all");
+    setCategoryFilter("all");
+    setSortOrder("newest");
+  }
+
   let noResultsMessage = "No matching items found.";
 
   if (typeFilter === "lost") {
@@ -106,114 +149,128 @@ function ItemList() {
   }
 
   return (
-    <section className="rounded-3xl border border-slate-200 bg-white shadow-sm sm:p-8">
-      <h2 className="text-xl font-medium">Reported Items</h2>
+    <section>
+      <h2 className="font-[Archivo_Black] text-xl text-[#1C1B19]">Reported Items</h2>
 
-    <div className="ml--10 grid grid-cols-[300px_1fr] gap-6 items-start">
-      <div className="flex flex-col gap-4">
-        <div>
-          <label htmlFor="item-search" className="mt-5 block text-sm font-medium text-slate-700">Search items</label>
-          <input
-            className="mt-3 text-sm resize-none w-auto rounded-xl px-2 py-2 border border-slate-200 outline-none transition placeholder:text-slate-400 focus:border-red-500 focus:ring-4 focus:ring-red-50"
-            id="item-search"
-            type="search"
-            placeholder="Search by title, category, building, or description"
-            value={searchTerm}
-            onChange={(event) => setSearchTerm(event.target.value)}
-          />
-        </div>
-
-        <div className="flex items-center gap-4">
-          <label htmlFor="type-filter" className="flex items-center gap-2 text-sm font-medium text-slate-700">Filter by type
-          <select
-          className="w-auto rounded-xl px-2 py-2 border border-slate-200 outline-none transition placeholder:text-slate-400 focus:border-red-500 focus:ring-4 focus:ring-red-50"
-          id="type-filter"
-          value={typeFilter}
-          onChange={(event) => setTypeFilter(event.target.value)}
-          >
-          <option value="all">All items</option>
-          <option value="lost">Lost items</option>
-          <option value="found">Found items</option>
-          </select>
-          </label>
-        </div>
-
-        <div className="flex items-center gap-4">
-          <label htmlFor="category-filter" className="flex items-center gap-2 text-sm font-medium text-slate-700">Filter by category
-          <select
-            className="w-auto rounded-xl px-2 py-2 border border-slate-200 outline-none transition placeholder:text-slate-400 focus:border-red-500 focus:ring-4 focus:ring-red-50"
-            id="category-filter"
-            value={categoryFilter}
-            onChange={(event) => setCategoryFilter(event.target.value)}
-          >
-            <option value="all">All categories</option>
-            {ITEM_CATEGORIES.map((category) => (
-              <option key={category} value={category}>
-                {category}
-              </option>
-            ))}
-          </select>
-          </label>
-        </div>
-
-        <div>
-        <label htmlFor="sort-order" className="flex items-center gap-2 text-sm font-medium text-slate-700">Sort items
-        <select
-          className="w-auto rounded-xl px-2 py-2 border border-slate-200 outline-none transition placeholder:text-slate-400 focus:border-red-500 focus:ring-4 focus:ring-red-50"
-          id="sort-order"
-          value={sortOrder}
-          onChange={(event) => setSortOrder(event.target.value)}
-        >
-          <option value="newest">Newest first</option>
-          <option value="oldest">Oldest first</option>
-        </select>
+      {/* Filter toolbar */}
+      <div className="mt-4 rounded-2xl border border-[#E5E0D8] bg-[#FAF7F2] p-5">
+        <label htmlFor="item-search" className={labelClasses}>
+          Search items
         </label>
+        <input
+          className={`${fieldClasses} mt-2`}
+          id="item-search"
+          type="search"
+          placeholder="Search by title, category, building, or description"
+          value={searchTerm}
+          onChange={(event) => setSearchTerm(event.target.value)}
+        />
+
+        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div>
+            <label htmlFor="type-filter" className={labelClasses}>
+              Filter by type
+            </label>
+            <select
+              className={`${fieldClasses} mt-2`}
+              id="type-filter"
+              value={typeFilter}
+              onChange={(event) => setTypeFilter(event.target.value)}
+            >
+              <option value="all">All items</option>
+              <option value="lost">Lost items</option>
+              <option value="found">Found items</option>
+            </select>
+          </div>
+
+          <div>
+            <label htmlFor="category-filter" className={labelClasses}>
+              Filter by category
+            </label>
+            <select
+              className={`${fieldClasses} mt-2`}
+              id="category-filter"
+              value={categoryFilter}
+              onChange={(event) => setCategoryFilter(event.target.value)}
+            >
+              <option value="all">All categories</option>
+              {ITEM_CATEGORIES.map((category) => (
+                <option key={category} value={category}>
+                  {category}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label htmlFor="sort-order" className={labelClasses}>
+              Sort items
+            </label>
+            <select
+              className={`${fieldClasses} mt-2`}
+              id="sort-order"
+              value={sortOrder}
+              onChange={(event) => setSortOrder(event.target.value)}
+            >
+              <option value="newest">Newest first</option>
+              <option value="oldest">Oldest first</option>
+            </select>
+          </div>
         </div>
+
+        {hasActiveFilters && (
+          <button
+            type="button"
+            onClick={clearFilters}
+            className="mt-4 text-xs font-semibold uppercase tracking-wide text-[#A6192E] transition hover:underline"
+          >
+            Clear search and filters
+          </button>
+        )}
       </div>
 
-      <div>
-        {filteredItems.length === 0 && (
-          <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 px-6 py-12 text-center">
-            <div className="text-3xl" aria-hidden="true">
-              🔍
-            </div>
+      {/* Results count */}
+      <p className="mt-6 text-sm text-[#6B6560]">
+        {sortedItems.length} {sortedItems.length === 1 ? "item" : "items"} found
+      </p>
 
-            <h3 className="mt-3 text-lg font-semibold text-slate-900">
-              {noResultsMessage}
-            </h3>
-
-            <p className="mt-2 max-w-md text-sm text-slate-600">
-              Try checking your spelling, using a different keyword, or changing your
-              filters.
-            </p>
-
-            <button
-              type="button"
-              onClick={() => {
-                setSearchTerm("");
-                setTypeFilter("all");
-                setCategoryFilter("all");
-                setSortOrder("newest");
-              }}
-              className="mt-5 rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-red-300 hover:text-red-600"
-            >
-              Clear search and filters
-            </button>
+      {filteredItems.length === 0 ? (
+        <div className="mt-4 flex flex-col items-center justify-center rounded-2xl border border-dashed border-[#E5E0D8] bg-white px-6 py-16 text-center">
+          <div className="text-3xl" aria-hidden="true">
+            🔍
           </div>
-        )}
-        <div className="grid grid-cols-4 gap-4">
+
+          <h3 className="mt-3 text-lg font-semibold text-[#1C1B19]">
+            {noResultsMessage}
+          </h3>
+
+          <p className="mt-2 max-w-md text-sm text-[#6B6560]">
+            Try checking your spelling, using a different keyword, or changing your
+            filters.
+          </p>
+
+          <button
+            type="button"
+            onClick={clearFilters}
+            className="mt-5 rounded-xl border border-[#E5E0D8] px-4 py-2 text-sm font-semibold text-[#1C1B19] transition hover:border-[#A6192E] hover:text-[#A6192E]"
+          >
+            Clear search and filters
+          </button>
+        </div>
+      ) : (
+        <div className="mt-4 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {sortedItems.map((item) => {
             const isOwner = currentUser?.uid === item.ownerId;
 
             return (
               <article
                 key={item.id}
-                className="relative flex cursor-pointer flex-col rounded-2xl border border-slate-200 p-4 transition hover:-translate-y-1 hover:border-red-300 hover:shadow-md"
+                className="relative flex cursor-pointer flex-col rounded-2xl border border-[#E5E0D8] bg-white p-4 transition hover:-translate-y-1 hover:border-[#A6192E]/40 hover:shadow-lg"
               >
                 <Link
                   to={`/items/${item.id}`}
                   aria-label={`View report: ${item.title}`}
-                  className="absolute inset-0 rounded-2xl focus:outline-none focus:ring-4 focus:ring-red-100"
+                  className="absolute inset-0 rounded-2xl focus:outline-none focus:ring-4 focus:ring-[#A6192E]/10"
                 />
                 {isOwner && (
                   <div className="absolute right-3 top-3 z-20">
@@ -242,12 +299,13 @@ function ItemList() {
                     />
                   </div>
                 )}
+
                 {item.imageUrl && (
-                  <div className="mb-3 flex justify-center rounded-xl bg-slate-50 p-2">
+                  <div className="mb-3 flex h-32 items-center justify-center overflow-hidden rounded-xl bg-[#FAF7F2] p-2">
                     <img
                       src={item.imageUrl}
                       alt={item.title}
-                      className="h-28 object-contain"
+                      className="h-full w-full object-contain"
                       referrerPolicy="no-referrer"
                       onError={(event) => {
                         event.currentTarget.parentElement.style.display =
@@ -257,34 +315,48 @@ function ItemList() {
                   </div>
                 )}
 
-                <h3 className="font-semibold text-slate-900">
+                <div className="flex flex-wrap gap-2">
+                  <span
+                    className={`rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ${getTypeBadgeClasses(
+                      item.type
+                    )}`}
+                  >
+                    {item.type}
+                  </span>
+                  <span
+                    className={`rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ${getStatusBadgeClasses(
+                      item.status
+                    )}`}
+                  >
+                    {item.status}
+                  </span>
+                </div>
+
+                <h3 className="mt-3 font-semibold text-[#1C1B19]">
                   {item.title}
                 </h3>
 
-                <p className="mt-1 text-sm text-slate-600">
+                <p className="mt-1 line-clamp-2 text-sm text-[#6B6560]">
                   {item.description}
                 </p>
 
-                <div className="mt-3 space-y-1 text-sm text-slate-600">
-                  <p>Type: {item.type}</p>
-                  <p>Category: {item.category}</p>
-                  <p>Building: {item.building}</p>
-                  <p>Location: {item.location}</p>
-                  <p>Status: {item.status}</p>
-
+                <div className="mt-3 space-y-1 border-t border-[#E5E0D8] pt-3 text-xs text-[#6B6560]">
                   <p>
-                    Reported:{" "}
+                    {item.category} &middot; {item.building}
+                  </p>
+                  <p>{item.location}</p>
+                  <p className="pt-1 text-[#6B6560]/70">
+                    Reported{" "}
                     {item.createdAt?.toDate
                       ? item.createdAt.toDate().toLocaleDateString()
-                      : "Date unavailable"}
+                      : "date unavailable"}
                   </p>
                 </div>
               </article>
             );
           })}
         </div>
-      </div>
-    </div>
+      )}
     </section>
   );
 }
