@@ -10,6 +10,8 @@ import CompleteProfile from "./pages/CompleteProfile";
 import ForgotPassword from "./pages/ForgotPassword";
 import Account from "./pages/Account";
 import EditItem from "./pages/EditItem";
+import Admin from "./pages/Admin";
+import AdminRoute from "./components/AdminRoute";
 
 function App() {
   return (
@@ -41,6 +43,14 @@ function App() {
               <ProtectedRoute>
                 <Account />
               </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin"
+            element={
+              <AdminRoute>
+                <Admin />
+              </AdminRoute>
             }
           />
             <Route

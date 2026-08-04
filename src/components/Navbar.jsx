@@ -2,42 +2,108 @@ import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth } from "../firebase/config";
-import { subscribeToClaimNotificationCount } from "../firebase/firestore";
+import { checkIsAdmin, subscribeToClaimNotificationCount, subscribeToModerationNotificationCount } from "../firebase/firestore";
 
 function Navbar() {
   const location = useLocation();
   const navigate = useNavigate();
   const [currentUser, setCurrentUser] = useState(null);
-  const [notificationCount, setNotificationCount] = useState(0);
+  const [
+    claimNotificationCount,
+    setClaimNotificationCount,
+  ] = useState(0);
+
+  const [
+    moderationNotificationCount,
+    setModerationNotificationCount,
+  ] = useState(0);
+
+  const notificationCount =
+    claimNotificationCount +
+    moderationNotificationCount;
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setCurrentUser(user);
-    });
+    let isActive = true;
 
-    return unsubscribe;
-  }, []);
+    const unsubscribe = onAuthStateChanged(
+      auth,
+      async (user) => {
+        setCurrentUser(user);
 
-  useEffect(() => {
-    if (!currentUser) {
-      return;
-    }
-
-    const unsubscribe =
-      subscribeToClaimNotificationCount(
-        currentUser.uid,
-        (newNotificationCount) => {
-          setNotificationCount(
-            newNotificationCount
-          );
-        },
-        () => {
-          setNotificationCount(0);
+        if (!user) {
+          setIsAdmin(false);
+          setClaimNotificationCount(0);
+          setModerationNotificationCount(0);
+          return;
         }
-      );
+        try {
+          const userIsAdmin = await checkIsAdmin(
+            user.uid
+          );
 
-    return unsubscribe;
-  }, [currentUser]);
+          if (isActive) {
+            setIsAdmin(userIsAdmin);
+          }
+        } catch (error) {
+          console.error(
+            "Unable to check admin access:",
+            error
+          );
+
+          if (isActive) {
+            setIsAdmin(false);
+          }
+        }
+      }
+    );
+
+    return () => {
+      isActive = false;
+      unsubscribe();
+    };
+  }, []);
+useEffect(() => {
+  if (!currentUser) {
+    return;
+  }
+
+  const unsubscribe =
+    subscribeToClaimNotificationCount(
+      currentUser.uid,
+      (newNotificationCount) => {
+        setClaimNotificationCount(
+          newNotificationCount
+        );
+      },
+      () => {
+        setClaimNotificationCount(0);
+      }
+    );
+
+  return unsubscribe;
+}, [currentUser]);
+
+useEffect(() => {
+  if (!currentUser) {
+    return;
+  }
+
+  const unsubscribe =
+    subscribeToModerationNotificationCount(
+      currentUser.uid,
+      (newNotificationCount) => {
+        setModerationNotificationCount(
+          newNotificationCount
+        );
+      },
+      () => {
+        setModerationNotificationCount(0);
+      }
+    );
+
+  return unsubscribe;
+}, [currentUser]);
   async function handleLogout() {
     try {
       await signOut(auth);
@@ -83,9 +149,25 @@ function Navbar() {
           })}
           {currentUser ? (
             <>
+              {isAdmin && (
                 <Link
-                    to="/account"
-                    aria-label="Open account"
+                  to="/admin"
+                  className={`rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
+                    location.pathname === "/admin"
+                      ? "bg-white text-[#A6192E]"
+                      : "text-white hover:bg-white/15"
+                  }`}
+                >
+                  Admin
+                </Link>
+              )}
+                <Link
+                  to={
+                      moderationNotificationCount > 0
+                          ? "/account#my-reports"
+                          : "/account"
+                  }
+                  aria-label="Open account"
                     className={`ml-3 flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
                         location.pathname === "/account"
                             ? "bg-white text-[#A6192E]"

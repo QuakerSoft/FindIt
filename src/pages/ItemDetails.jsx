@@ -1,6 +1,12 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
-import { createClaim, getClaimsByOwner, getItemById, getUserProfile } from "../firebase/firestore";
+import {
+  checkIsAdmin,
+  createClaim,
+  getClaimsByOwner,
+  getItemById,
+  getUserProfile,
+} from "../firebase/firestore";
 import ReportPost from "../components/ReportPost";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "../firebase/config";
@@ -16,6 +22,9 @@ function ItemDetails() {
   const [errorMessage, setErrorMessage] = useState("");
   const [imageError, setImageError] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
+
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
 
   const [showClaimForm, setShowClaimForm] = useState(false);
   const [claimMessage, setClaimMessage] = useState("");
@@ -52,9 +61,35 @@ function ItemDetails() {
   }, [itemId]);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setCurrentUser(user);
-    });
+    const unsubscribe = onAuthStateChanged(
+      auth,
+      async (user) => {
+        setCurrentUser(user);
+
+        if (!user) {
+          setIsAdmin(false);
+          setIsAuthLoading(false);
+          return;
+        }
+
+        try {
+          const adminStatus = await checkIsAdmin(
+            user.uid
+          );
+
+          setIsAdmin(adminStatus);
+        } catch (error) {
+          console.error(
+            "Unable to verify administrator access:",
+            error
+          );
+
+          setIsAdmin(false);
+        } finally {
+          setIsAuthLoading(false);
+        }
+      }
+    );
 
     return unsubscribe;
   }, []);
@@ -224,18 +259,39 @@ function ItemDetails() {
   const isOwner =
     currentUser && item && currentUser.uid === item.ownerId;
 
-    const cameFromAccount =
+  const isUnderReview =
+    item?.moderationStatus === "pending_review";
+
+  const isHidden =
+    item?.moderationStatus === "hidden";
+
+  const isUnavailable =
+    item?.status === "resolved" ||
+    isUnderReview ||
+    isHidden;
+
+  const canInspectUnavailableItem =
+    Boolean(isOwner || isAdmin);
+
+  const cameFromAccount =
     location.state?.from === "account";
+
+  const cameFromAdmin =
+    location.state?.from === "admin";
 
   const backPath = cameFromAccount
     ? "/account"
-    : "/browse";
+    : cameFromAdmin
+      ? "/admin"
+      : "/browse";
 
   const backLabel = cameFromAccount
     ? "Back to Your Account"
-    : "Back to Browse";
+    : cameFromAdmin
+      ? "Back to Moderation"
+      : "Back to Browse";
 
-  if (isLoading) {
+  if (isLoading || isAuthLoading) {
     return (
       <main className="flex flex-col items-center justify-center py-20">
         <div className="h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-red-600" />
@@ -263,6 +319,30 @@ function ItemDetails() {
           className="mt-6 inline-block rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white"
         >
           {backLabel}
+        </Link>
+      </main>
+    );
+  }
+
+  if (
+    isUnavailable &&
+    !canInspectUnavailableItem
+  ) {
+    return (
+      <main className="mx-auto max-w-3xl py-10">
+        <h1 className="text-2xl font-bold text-slate-900">
+          Report unavailable
+        </h1>
+
+        <p className="mt-2 text-slate-600">
+          This item report is no longer publicly available.
+        </p>
+
+        <Link
+          to="/browse"
+          className="mt-6 inline-block rounded-xl bg-[#A6192E] px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700"
+        >
+          Back to Browse
         </Link>
       </main>
     );
@@ -297,7 +377,7 @@ function ItemDetails() {
           </div>
 
           <div className="shrink-0">
-            {isOwner ? (
+            {isOwner && !isUnavailable ? (
               <ReportActionsMenu
                 item={item}
                 onResolved={() => {
@@ -310,11 +390,48 @@ function ItemDetails() {
                   navigate("/browse");
                 }}
               />
-            ) : (
+            ) : !isOwner &&
+              !isUnavailable ? (
               <ReportPost item={item} />
-            )}
+            ) : null}
           </div>
         </div>
+
+        {isUnderReview && (
+          <div className="mt-5 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3">
+            <p className="font-semibold text-amber-900">
+              This report is under review
+            </p>
+
+            <p className="mt-1 text-sm text-amber-800">
+              It is temporarily hidden from the public while an administrator reviews it.
+            </p>
+          </div>
+        )}
+
+        {isHidden && (
+          <div className="mt-5 rounded-xl border border-red-300 bg-red-50 px-4 py-3">
+            <p className="font-semibold text-red-900">
+              This report was removed
+            </p>
+
+            <p className="mt-1 text-sm text-red-800">
+              An administrator removed this report because it violated the site's posting guidelines.
+            </p>
+          </div>
+        )}
+
+        {item.status === "resolved" && canInspectUnavailableItem && (
+          <div className="mt-5 rounded-xl border border-slate-300 bg-slate-100 px-4 py-3">
+            <p className="font-semibold text-slate-900">
+              This report is resolved
+            </p>
+
+            <p className="mt-1 text-sm text-slate-700">
+              It is no longer visible in Browse or accepting requests.
+            </p>
+          </div>
+        )}
 
         <p className="mt-4 text-slate-600">
           {item.description}
@@ -410,7 +527,10 @@ function ItemDetails() {
           </div>
         )}
 
-        {item.status === "open" && !isOwner && (
+        {item.status === "open" &&
+          !isOwner &&
+          !isUnderReview &&
+          !isHidden && (
           <div className="mt-6 border-t border-slate-200 pt-5">
             {!currentUser ? (
               <div>
