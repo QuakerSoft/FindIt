@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { auth } from "../firebase/config";
 import { createReport } from "../firebase/firestore";
 
@@ -10,7 +11,7 @@ const REPORT_REASONS = [
   "Other",
 ];
 
-function ReportPost({ item }) {
+function ReportPost({ item, showAsMenu = false }) {
   const [isOpen, setIsOpen] = useState(false);
   const [reason, setReason] = useState("");
   const [details, setDetails] = useState("");
@@ -19,7 +20,52 @@ function ReportPost({ item }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [wasSubmitted, setWasSubmitted] = useState(false);
 
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    if (!showAsMenu || !isMenuOpen) {
+      return;
+    }
+
+    function handleOutsideClick(event) {
+      if (
+        menuRef.current &&
+        !menuRef.current.contains(event.target)
+      ) {
+        setIsMenuOpen(false);
+      }
+    }
+
+    function handleEscape(event) {
+      if (event.key === "Escape") {
+        setIsMenuOpen(false);
+      }
+    }
+
+    document.addEventListener(
+      "mousedown",
+      handleOutsideClick
+    );
+    document.addEventListener(
+      "keydown",
+      handleEscape
+    );
+
+    return () => {
+      document.removeEventListener(
+        "mousedown",
+        handleOutsideClick
+      );
+      document.removeEventListener(
+        "keydown",
+        handleEscape
+      );
+    };
+  }, [showAsMenu, isMenuOpen]);
+
   function openDialog() {
+    setIsMenuOpen(false);
     setIsOpen(true);
     setMessage("");
     setMessageType("");
@@ -107,15 +153,50 @@ function ReportPost({ item }) {
 
   return (
     <>
-      <button
-        type="button"
-        onClick={openDialog}
-        className="rounded-lg border border-black bg-white px-4 py-2 text-sm font-semibold text-black transition hover:bg-black hover:text-white"
-      >
-        Report Post
-      </button>
+      {showAsMenu ? (
+        <div
+          ref={menuRef}
+          className="relative"
+          onClick={(event) => event.stopPropagation()}
+        >
+          <button
+            type="button"
+            aria-label={`More options for ${item.title}`}
+            aria-expanded={isMenuOpen}
+            onClick={() =>
+              setIsMenuOpen(
+                (currentValue) => !currentValue
+              )
+            }
+            className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-2xl font-bold leading-none text-slate-700 shadow-sm transition hover:bg-slate-100"
+          >
+            <span aria-hidden="true">⋮</span>
+          </button>
 
-      {isOpen && (
+          {isMenuOpen && (
+            <div className="absolute right-0 top-11 z-40 w-44 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-xl">
+              <button
+                type="button"
+                onClick={openDialog}
+                className="block w-full px-4 py-2.5 text-left text-sm font-medium text-red-700 transition hover:bg-red-50"
+              >
+                Report Post
+              </button>
+            </div>
+          )}
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={openDialog}
+          className="rounded-lg border border-black bg-white px-4 py-2 text-sm font-semibold text-black transition hover:bg-black hover:text-white"
+        >
+          Report Post
+        </button>
+      )}
+
+      {isOpen &&
+        createPortal(
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4"
           role="dialog"
@@ -206,8 +287,8 @@ function ReportPost({ item }) {
                       <p className="mt-1 text-right text-xs text-slate-500">
                         {details.length}/500
                       </p>
-                    </div>
-                  )}
+                      </div>
+                      )}
                 </>
               )}
 
@@ -257,7 +338,8 @@ function ReportPost({ item }) {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );

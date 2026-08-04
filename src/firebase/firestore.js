@@ -11,6 +11,7 @@ import {
     setDoc,
     serverTimestamp,
     onSnapshot,
+    writeBatch,
 } from "firebase/firestore";
 
 import { db } from "./config";
@@ -480,15 +481,57 @@ export async function markSubmittedClaimResponsesViewed(
     );
 }
 
-export async function markItemResolved(itemId) {
+export async function markItemResolved(
+    itemId,
+    ownerId
+) {
     if (!itemId) {
         throw new Error("An item ID is required.");
     }
 
-    const itemRef = doc(db, "items", itemId);
+    if (!ownerId) {
+        throw new Error("An owner ID is required.");
+    }
 
-    await updateDoc(itemRef, {
+    const itemRef = doc(db, "items", itemId);
+    const claimsRef = collection(db, "claims");
+
+    const ownerClaimsQuery = query(
+        claimsRef,
+        where("ownerId", "==", ownerId)
+    );
+
+    const claimsSnapshot = await getDocs(
+        ownerClaimsQuery
+    );
+
+    const pendingItemClaims =
+        claimsSnapshot.docs.filter((claimDoc) => {
+            const claim = claimDoc.data();
+
+            return (
+                claim.itemId === itemId &&
+                claim.status === "pending"
+            );
+        });
+
+    const batch = writeBatch(db);
+
+    batch.update(itemRef, {
         status: "resolved",
         resolvedAt: serverTimestamp(),
     });
+
+    pendingItemClaims.forEach((claimDoc) => {
+        batch.update(claimDoc.ref, {
+            status: "closed",
+            ownerContact: null,
+            claimantViewedResponse: false,
+            respondedAt: serverTimestamp(),
+        });
+    });
+
+    await batch.commit();
+
+    return pendingItemClaims.length;
 }

@@ -234,6 +234,7 @@ function Account() {
             pending: "Pending",
             accepted: "Accepted",
             rejected: "Rejected",
+            closed: "Closed",
         };
 
         return statusLabels[status] || "Unknown";
@@ -465,7 +466,8 @@ function Account() {
             setSuccessMessage("");
 
             await markItemResolved(
-                itemPendingResolution.id
+                itemPendingResolution.id,
+                currentUser.uid
             );
 
             setItems((currentItems) =>
@@ -861,6 +863,8 @@ function Account() {
                                                     ? "bg-green-100 text-green-800"
                                                     : claim.status === "rejected"
                                                     ? "bg-red-100 text-red-800"
+                                                    : claim.status === "closed"
+                                                    ? "bg-slate-200 text-slate-700"
                                                     : "bg-amber-100 text-amber-800"
                                             }`}
                                         >
@@ -1004,6 +1008,8 @@ function Account() {
                                                     ? "bg-green-100 text-green-800"
                                                     : claim.status === "rejected"
                                                     ? "bg-red-100 text-red-800"
+                                                    : claim.status === "closed"
+                                                    ? "bg-slate-200 text-slate-700"
                                                     : "bg-amber-100 text-amber-800"
                                             }`}
                                         >
@@ -1029,6 +1035,12 @@ function Account() {
                                 {claim.status === "rejected" && (
                                     <p className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
                                         The poster did not approve this request.
+                                    </p>
+                                )}
+
+                                {claim.status === "closed" && (
+                                    <p className="mt-4 rounded-xl border border-slate-300 bg-slate-100 px-4 py-3 text-sm text-slate-700">
+                                        This report was marked as resolved before your request was accepted.
                                     </p>
                                 )}
 
@@ -1238,6 +1250,11 @@ function Account() {
                                 requests for this report.
                             </p>
 
+                            <p>
+                                Any pending requests will be closed, and those
+                                users will be notified that the report was resolved.
+                            </p>
+
                             <p className="font-medium text-slate-900">
                                 This action cannot currently be undone.
                             </p>
@@ -1403,12 +1420,14 @@ function Account() {
                                     </button>
                                 )}
 
-                                <Link
-                                    to={`/items/${item.id}/edit`}
-                                    className="rounded-xl border border-blue-300 px-4 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-50"
-                                >
-                                    Edit Report
-                                </Link>
+                                {item.status !== "resolved" && (
+                                    <Link
+                                        to={`/items/${item.id}/edit`}
+                                        className="rounded-xl border border-blue-300 px-4 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-50"
+                                    >
+                                        Edit Report
+                                    </Link>
+                                )}
 
                                 <button
                                     type="button"

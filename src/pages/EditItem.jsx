@@ -53,6 +53,13 @@ function EditItem() {
           return;
         }
 
+        if (itemData.status === "resolved") {
+          setErrorMessage(
+            "Resolved reports can no longer be edited."
+          );
+          return;
+        }
+
         const loadedFormData = {
             title: itemData.title || "",
             description: itemData.description || "",
@@ -122,6 +129,13 @@ function EditItem() {
       if (existingItem.ownerId !== currentUser.uid) {
         setErrorMessage(
           "You can only edit reports that you created."
+        );
+        return;
+      }
+
+      if (existingItem.status === "resolved") {
+        setErrorMessage(
+          "This report was resolved and can no longer be edited."
         );
         return;
       }
