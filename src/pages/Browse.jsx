@@ -18,5 +18,4 @@ function Browse() {
     </main>
   );
 }
-
 export default Browse;

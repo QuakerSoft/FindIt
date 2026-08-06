@@ -7,68 +7,42 @@ import { auth } from "../firebase/config";
 import ReportActionsMenu from "./ReportActionsMenu";
 import ReportPost from "./ReportPost";
 
+const fieldClasses =
+  "w-full rounded-xl border border-[#E5E0D8] bg-white px-3 py-2.5 text-sm text-[#1C1B19] outline-none transition placeholder:text-[#6B6560]/60 focus:border-[#A6192E] focus:ring-4 focus:ring-[#A6192E]/10";
+
+const labelClasses = "block text-xs font-semibold uppercase tracking-wide text-[#6B6560]";
+
+function getTypeBadgeClasses(type) {
+  return type === "found"
+    ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+    : "bg-[#A6192E]/10 text-[#A6192E] border border-[#A6192E]/20";
+}
+
+function getStatusBadgeClasses(status) {
+  if (status === "resolved" || status === "claimed") {
+    return "bg-emerald-50 text-emerald-700 border border-emerald-200";
+  }
+  return "bg-[#FAF7F2] text-[#6B6560] border border-[#E5E0D8]";
+}
+
 function ItemList() {
   const [items, setItems] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
-
   const [searchTerm, setSearchTerm] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
-  const [categoryFilter, setCategoryFilter] = useState("all");
   const [sortOrder, setSortOrder] = useState("newest");
-
+  const [categoryFilter, setCategoryFilter] = useState("all");
   const [currentUser, setCurrentUser] = useState(null);
   const [pendingClaimCounts, setPendingClaimCounts] = useState({});
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(
-      auth,
-      (user) => {
-        setCurrentUser(user);
-      }
-    );
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setCurrentUser(user);
+    });
 
     return unsubscribe;
   }, []);
-
-  useEffect(() => {
-    async function loadPendingClaimCounts() {
-      if (!currentUser) {
-        setPendingClaimCounts({});
-        return;
-      }
-
-      try {
-        const ownerClaims = await getClaimsByOwner(
-          currentUser.uid
-        );
-
-        const claimCounts = ownerClaims.reduce(
-          (counts, claim) => {
-            if (claim.status !== "pending") {
-              return counts;
-            }
-
-            counts[claim.itemId] =
-              (counts[claim.itemId] || 0) + 1;
-
-            return counts;
-          },
-          {}
-        );
-
-        setPendingClaimCounts(claimCounts);
-      } catch (error) {
-        console.error(
-          "Unable to load pending request counts:",
-          error
-        );
-        setPendingClaimCounts({});
-      }
-    }
-
-    loadPendingClaimCounts();
-  }, [currentUser]);
 
   useEffect(() => {
     async function loadItems() {
@@ -86,19 +60,72 @@ function ItemList() {
     loadItems();
   }, []);
 
-  function clearFilters() {
-    setSearchTerm("");
-    setTypeFilter("all");
-    setCategoryFilter("all");
-    setSortOrder("newest");
-  }
+  useEffect(() => {
+    async function loadPendingClaimCounts() {
+      if (!currentUser) {
+        setPendingClaimCounts({});
+        return;
+      }
 
-  function getCreatedTime(item) {
-    if (item.createdAt?.toDate) {
-      return item.createdAt.toDate().getTime();
+      try {
+        const ownerClaims = await getClaimsByOwner(currentUser.uid);
+
+        const claimCounts = ownerClaims.reduce((counts, claim) => {
+          if (claim.status !== "pending") {
+            return counts;
+          }
+
+          counts[claim.itemId] = (counts[claim.itemId] || 0) + 1;
+          return counts;
+        }, {});
+
+        setPendingClaimCounts(claimCounts);
+      } catch (error) {
+        console.error("Unable to load pending request counts:", error);
+        setPendingClaimCounts({});
+      }
     }
 
-    return 0;
+    loadPendingClaimCounts();
+  }, [currentUser]);
+
+  if (isLoading) {
+    return (
+      <section className="flex flex-col items-center justify-center py-20">
+        <div className="h-10 w-10 animate-spin rounded-full border-4 border-[#E5E0D8] border-t-[#A6192E]"></div>
+        <p className="mt-4 text-sm text-[#6B6560]">Fetching campus reports...</p>
+      </section>
+    );
+  }
+
+  if (errorMessage) {
+    return (
+      <section className="rounded-2xl border border-red-200 bg-red-50 px-6 py-8 text-center text-sm text-red-700">
+        {errorMessage}
+      </section>
+    );
+  }
+
+  if (items.length === 0) {
+    return (
+      <section className="flex flex-col items-center rounded-3xl border border-dashed border-[#E5E0D8] bg-white px-6 py-16 text-center">
+        <div className="text-4xl" aria-hidden="true">
+          📦
+        </div>
+        <h2 className="mt-4 font-[Archivo_Black] text-xl text-[#1C1B19]">
+          No lost or found reports yet.
+        </h2>
+        <p className="mt-2 text-sm text-[#6B6560]">
+          Be the first to report a lost or found item!
+        </p>
+        <Link
+          to="/post"
+          className="mt-5 rounded-sm border border-transparent bg-[#A6192E] px-6 py-2.5 text-sm font-medium text-white transition hover:border-[#A6192E] hover:bg-white hover:text-[#A6192E]"
+        >
+          Post an Item
+        </Link>
+      </section>
+    );
   }
 
   const normalizedSearch = searchTerm.trim().toLowerCase();
@@ -112,363 +139,294 @@ function ItemList() {
       return false;
     }
 
-    const title = item.title?.toLowerCase() || "";
-    const description = item.description?.toLowerCase() || "";
-    const category = item.category?.toLowerCase() || "";
-    const building = item.building?.toLowerCase() || "";
-    const location = item.location?.toLowerCase() || "";
-
     const matchesSearch =
       normalizedSearch === "" ||
-      title.includes(normalizedSearch) ||
-      description.includes(normalizedSearch) ||
-      category.includes(normalizedSearch) ||
-      building.includes(normalizedSearch) ||
-      location.includes(normalizedSearch);
+      item.title?.toLowerCase().includes(normalizedSearch) ||
+      item.description?.toLowerCase().includes(normalizedSearch) ||
+      item.category?.toLowerCase().includes(normalizedSearch) ||
+      item.building?.toLowerCase().includes(normalizedSearch) ||
+      item.location?.toLowerCase().includes(normalizedSearch);
 
     const matchesType =
       typeFilter === "all" || item.type === typeFilter;
 
     const matchesCategory =
-      categoryFilter === "all" ||
-      item.category === categoryFilter;
+      categoryFilter === "all" || item.category === categoryFilter;
 
     return matchesSearch && matchesType && matchesCategory;
   });
 
   const sortedItems = [...filteredItems].sort((itemA, itemB) => {
-    const timeA = getCreatedTime(itemA);
-    const timeB = getCreatedTime(itemB);
+    const timeA = itemA.createdAt?.toDate
+      ? itemA.createdAt.toDate().getTime()
+      : 0;
 
-    if (sortOrder === "oldest") {
-      return timeA - timeB;
-    }
+    const timeB = itemB.createdAt?.toDate
+      ? itemB.createdAt.toDate().getTime()
+      : 0;
 
-    return timeB - timeA;
+    return sortOrder === "newest"
+      ? timeB - timeA
+      : timeA - timeB;
   });
 
-  if (isLoading) {
-    return (
-      <section className="flex flex-col items-center justify-center py-20">
-        <div className="h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-red-600" />
+  const hasActiveFilters =
+    searchTerm !== "" || typeFilter !== "all" || categoryFilter !== "all";
 
-        <p className="mt-4 text-slate-600">
-          Fetching campus reports...
-        </p>
-      </section>
-    );
+  function clearFilters() {
+    setSearchTerm("");
+    setTypeFilter("all");
+    setCategoryFilter("all");
+    setSortOrder("newest");
   }
 
-  if (errorMessage) {
-    return (
-      <div className="rounded-2xl border border-red-200 bg-red-50 p-5 text-red-700">
-        {errorMessage}
-      </div>
-    );
-  }
+  let noResultsMessage = "No matching items found.";
 
-  if (items.length === 0) {
-    return (
-      <section className="rounded-3xl border border-slate-200 bg-white p-10 text-center shadow-sm">
-        <div className="text-4xl" aria-hidden="true">
-          📦
-        </div>
-
-        <h1 className="mt-4 text-2xl font-bold text-slate-900">
-          No lost or found reports yet
-        </h1>
-
-        <p className="mt-2 text-slate-600">
-          Be the first person to report a lost or found item.
-        </p>
-
-        <Link
-          to="/post"
-          className="mt-6 inline-block rounded-xl bg-red-600 px-5 py-3 font-semibold text-white transition hover:bg-red-700"
-        >
-          Post an Item
-        </Link>
-      </section>
-    );
+  if (typeFilter === "lost") {
+    noResultsMessage = "No lost items match your search.";
+  } else if (typeFilter === "found") {
+    noResultsMessage = "No found items match your search.";
   }
 
   return (
     <section>
-      {/* Page heading */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">
-          Browse Reported Items
-        </h1>
+      <h2 className="font-[Archivo_Black] text-xl text-[#1C1B19]">Reported Items</h2>
 
-        <p className="mt-2 text-slate-600">
-          Search for lost and found items reported around campus.
-        </p>
-      </div>
-
-      {/* Search box */}
-      <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-        <label htmlFor="item-search" className="sr-only">
+      {/* Filter toolbar */}
+      <div className="mt-4 rounded-2xl border border-[#E5E0D8] bg-[#FAF7F2] p-5">
+        <label htmlFor="item-search" className={labelClasses}>
           Search items
         </label>
-
         <input
+          className={`${fieldClasses} mt-2`}
           id="item-search"
           type="search"
-          placeholder="Search by item name, category, building, or description..."
+          placeholder="Search by title, category, building, or description"
           value={searchTerm}
           onChange={(event) => setSearchTerm(event.target.value)}
-          className="w-full rounded-xl border border-slate-300 px-4 py-3 text-base outline-none transition placeholder:text-slate-400 focus:border-red-500 focus:ring-4 focus:ring-red-100"
         />
-      </div>
 
-      {/* Listings and right sidebar */}
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_280px] lg:items-start">
-        {/* Item listings */}
-        <div className="order-2 min-w-0 lg:order-1">
-          <div className="mb-4 flex items-center justify-between gap-4">
-            <h2 className="text-xl font-semibold text-slate-900">
-              Reported Items
-            </h2>
-
-            <p className="text-sm text-slate-500">
-              {sortedItems.length}{" "}
-              {sortedItems.length === 1 ? "item" : "items"}
-            </p>
+        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div>
+            <label htmlFor="type-filter" className={labelClasses}>
+              Filter by type
+            </label>
+            <select
+              className={`${fieldClasses} mt-2`}
+              id="type-filter"
+              value={typeFilter}
+              onChange={(event) => setTypeFilter(event.target.value)}
+            >
+              <option value="all">All items</option>
+              <option value="lost">Lost items</option>
+              <option value="found">Found items</option>
+            </select>
           </div>
 
-          {sortedItems.length === 0 ? (
-            <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-16 text-center">
-              <div className="text-4xl" aria-hidden="true">
-                🔍
-              </div>
+          <div>
+            <label htmlFor="category-filter" className={labelClasses}>
+              Filter by category
+            </label>
+            <select
+              className={`${fieldClasses} mt-2`}
+              id="category-filter"
+              value={categoryFilter}
+              onChange={(event) => setCategoryFilter(event.target.value)}
+            >
+              <option value="all">All categories</option>
+              {ITEM_CATEGORIES.map((category) => (
+                <option key={category} value={category}>
+                  {category}
+                </option>
+              ))}
+            </select>
+          </div>
 
-              <h3 className="mt-4 text-lg font-semibold text-slate-900">
-                No matching items found
-              </h3>
-
-              <p className="mt-2 max-w-md text-sm text-slate-600">
-                Try another search word or change the selected filters.
-              </p>
-
-              <button
-                type="button"
-                onClick={clearFilters}
-                className="mt-5 rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-red-300 hover:text-red-600"
-              >
-                Clear search and filters
-              </button>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
-              {sortedItems.map((item) => {
-                const isOwner =
-                  currentUser?.uid === item.ownerId;
-
-                return (
-                  <article
-                    key={item.id}
-                    className="group relative rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:z-40 hover:-translate-y-1 hover:border-red-300 hover:shadow-lg focus-within:z-40"
-                  >
-                    <Link
-                      to={`/items/${item.id}`}
-                      state={{ from: "browse" }}
-                      aria-label={`View item: ${item.title}`}
-                      className="absolute inset-0 z-10 rounded-2xl focus:outline-none focus:ring-4 focus:ring-red-100"
-                    />
-
-                    {isOwner && pendingClaimCounts[item.id] > 0 && (
-                      <div className="pointer-events-none absolute left-3 top-3 z-30 rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-900 shadow-sm">
-                        {pendingClaimCounts[item.id] === 1
-                          ? "1 pending request"
-                          : `${pendingClaimCounts[item.id]} pending requests`}
-                      </div>
-                    )}
-
-                    <div className="absolute right-3 top-3 z-30">
-                      {isOwner ? (
-                        <ReportActionsMenu
-                          item={item}
-                          onResolved={(resolvedItemId) => {
-                            setItems((currentItems) =>
-                              currentItems.map((currentItem) =>
-                                currentItem.id === resolvedItemId
-                                  ? {
-                                      ...currentItem,
-                                      status: "resolved",
-                                    }
-                                  : currentItem
-                              )
-                            );
-                          }}
-                          onDeleted={(deletedItemId) => {
-                            setItems((currentItems) =>
-                              currentItems.filter(
-                                (currentItem) =>
-                                  currentItem.id !== deletedItemId
-                              )
-                            );
-                          }}
-                        />
-                      ) : (
-                        <ReportPost
-                          item={item}
-                          showAsMenu
-                          onReported={(reportedItemId) => {
-                            setItems((currentItems) =>
-                              currentItems.map((currentItem) =>
-                                currentItem.id === reportedItemId
-                                  ? {
-                                      ...currentItem,
-                                      moderationStatus:
-                                        "pending_review",
-                                    }
-                                  : currentItem
-                              )
-                            );
-                          }}
-                        />
-                      )}
-                    </div>
-
-                    {/* Item picture */}
-                    <div className="relative aspect-[4/3] overflow-hidden rounded-t-2xl bg-slate-100">
-                      <div className="absolute inset-0 flex items-center justify-center text-sm text-slate-400">
-                        No image available
-                      </div>
-
-                      {item.imageUrl && (
-                        <img
-                          src={item.imageUrl}
-                          alt={item.title || "Reported item"}
-                          referrerPolicy="no-referrer"
-                          className="relative z-[1] h-full w-full object-cover transition duration-300 group-hover:scale-105"
-                          onError={(event) => {
-                            event.currentTarget.style.display =
-                              "none";
-                          }}
-                        />
-                      )}
-                    </div>
-
-                    {/* Item name */}
-                    <div className="p-4">
-                      <div className="mb-2 flex items-center gap-2">
-                        <span
-                          className={`rounded-full px-2.5 py-1 text-xs font-bold uppercase tracking-wide ${
-                            item.type === "lost"
-                              ? "bg-red-100 text-red-700"
-                              : "bg-green-100 text-green-700"
-                          }`}
-                        >
-                          {item.type === "lost" ? "Lost item" : "Found item"}
-                        </span>
-                      </div>
-
-                      <h3 className="truncate text-base font-semibold text-slate-900 transition group-hover:text-red-600">
-                        {item.title || "Untitled item"}
-                      </h3>
-
-                      <p className="mt-1 truncate text-sm text-slate-500">
-                        Posted by{" "}
-                        {item.ownerFirstName || "a CSUN community member"}
-                      </p>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-          )}
+          <div>
+            <label htmlFor="sort-order" className={labelClasses}>
+              Sort items
+            </label>
+            <select
+              className={`${fieldClasses} mt-2`}
+              id="sort-order"
+              value={sortOrder}
+              onChange={(event) => setSortOrder(event.target.value)}
+            >
+              <option value="newest">Newest first</option>
+              <option value="oldest">Oldest first</option>
+            </select>
+          </div>
         </div>
 
-        {/* Right filter sidebar */}
-        <aside className="order-1 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm lg:order-2 lg:sticky lg:top-24">
-          <div className="mb-5 flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-slate-900">
-              Filters
-            </h2>
-
-            <button
-              type="button"
-              onClick={clearFilters}
-              className="text-sm font-medium text-red-600 transition hover:text-red-700"
-            >
-              Clear
-            </button>
-          </div>
-
-          <div className="space-y-5">
-            {/* Type filter */}
-            <div>
-              <label
-                htmlFor="type-filter"
-                className="mb-2 block text-sm font-medium text-slate-700"
-              >
-                Item type
-              </label>
-
-              <select
-                id="type-filter"
-                value={typeFilter}
-                onChange={(event) => setTypeFilter(event.target.value)}
-                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm outline-none transition focus:border-red-500 focus:ring-4 focus:ring-red-100"
-              >
-                <option value="all">All items</option>
-                <option value="lost">Lost items</option>
-                <option value="found">Found items</option>
-              </select>
-            </div>
-
-            {/* Category filter */}
-            <div>
-              <label
-                htmlFor="category-filter"
-                className="mb-2 block text-sm font-medium text-slate-700"
-              >
-                Category
-              </label>
-
-              <select
-                id="category-filter"
-                value={categoryFilter}
-                onChange={(event) =>
-                  setCategoryFilter(event.target.value)
-                }
-                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm outline-none transition focus:border-red-500 focus:ring-4 focus:ring-red-100"
-              >
-                <option value="all">All categories</option>
-
-                {ITEM_CATEGORIES.map((category) => (
-                  <option key={category} value={category}>
-                    {category}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Sort filter */}
-            <div>
-              <label
-                htmlFor="sort-order"
-                className="mb-2 block text-sm font-medium text-slate-700"
-              >
-                Sort by
-              </label>
-
-              <select
-                id="sort-order"
-                value={sortOrder}
-                onChange={(event) => setSortOrder(event.target.value)}
-                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm outline-none transition focus:border-red-500 focus:ring-4 focus:ring-red-100"
-              >
-                <option value="newest">Newest first</option>
-                <option value="oldest">Oldest first</option>
-              </select>
-            </div>
-          </div>
-        </aside>
+        {hasActiveFilters && (
+          <button
+            type="button"
+            onClick={clearFilters}
+            className="mt-4 text-xs font-semibold uppercase tracking-wide text-[#A6192E] transition hover:underline"
+          >
+            Clear search and filters
+          </button>
+        )}
       </div>
+
+      {/* Results count */}
+      <p className="mt-6 text-sm text-[#6B6560]">
+        {sortedItems.length} {sortedItems.length === 1 ? "item" : "items"} found
+      </p>
+
+      {sortedItems.length === 0 ? (
+        <div className="mt-4 flex flex-col items-center justify-center rounded-2xl border border-dashed border-[#E5E0D8] bg-white px-6 py-16 text-center">
+          <div className="text-3xl" aria-hidden="true">
+            🔍
+          </div>
+
+          <h3 className="mt-3 text-lg font-semibold text-[#1C1B19]">
+            {noResultsMessage}
+          </h3>
+
+          <p className="mt-2 max-w-md text-sm text-[#6B6560]">
+            Try checking your spelling, using a different keyword, or changing your
+            filters.
+          </p>
+
+          <button
+            type="button"
+            onClick={clearFilters}
+            className="mt-5 rounded-xl border border-[#E5E0D8] px-4 py-2 text-sm font-semibold text-[#1C1B19] transition hover:border-[#A6192E] hover:text-[#A6192E]"
+          >
+            Clear search and filters
+          </button>
+        </div>
+      ) : (
+        <div className="mt-4 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {sortedItems.map((item) => {
+            const isOwner = currentUser?.uid === item.ownerId;
+
+            return (
+              <article
+                key={item.id}
+                className="group relative flex cursor-pointer flex-col rounded-2xl border border-[#E5E0D8] bg-white p-4 transition hover:z-40 hover:-translate-y-1 hover:border-[#A6192E]/40 hover:shadow-lg focus-within:z-40"
+              >
+                <Link
+                  to={`/items/${item.id}`}
+                  state={{ from: "browse" }}
+                  aria-label={`View report: ${item.title}`}
+                  className="absolute inset-0 z-10 rounded-2xl focus:outline-none focus:ring-4 focus:ring-[#A6192E]/10"
+                />
+
+                {isOwner && pendingClaimCounts[item.id] > 0 && (
+                  <div className="pointer-events-none absolute left-3 top-3 z-30 rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-900 shadow-sm">
+                    {pendingClaimCounts[item.id] === 1
+                      ? "1 pending request"
+                      : `${pendingClaimCounts[item.id]} pending requests`}
+                  </div>
+                )}
+
+                <div className="absolute right-3 top-3 z-30">
+                  {isOwner ? (
+                    <ReportActionsMenu
+                      item={item}
+                      onResolved={(resolvedItemId) => {
+                        setItems((currentItems) =>
+                          currentItems.map((currentItem) =>
+                            currentItem.id === resolvedItemId
+                              ? {
+                                  ...currentItem,
+                                  status: "resolved",
+                                }
+                              : currentItem
+                          )
+                        );
+                      }}
+                      onDeleted={(deletedItemId) => {
+                        setItems((currentItems) =>
+                          currentItems.filter(
+                            (currentItem) =>
+                              currentItem.id !== deletedItemId
+                          )
+                        );
+                      }}
+                    />
+                  ) : (
+                    <ReportPost
+                      item={item}
+                      showAsMenu
+                      onReported={(reportedItemId) => {
+                        setItems((currentItems) =>
+                          currentItems.map((currentItem) =>
+                            currentItem.id === reportedItemId
+                              ? {
+                                  ...currentItem,
+                                  moderationStatus: "pending_review",
+                                }
+                              : currentItem
+                          )
+                        );
+                      }}
+                    />
+                  )}
+                </div>
+
+                {item.imageUrl && (
+                  <div className="mb-3 flex h-32 items-center justify-center overflow-hidden rounded-xl bg-[#FAF7F2] p-2">
+                    <img
+                      src={item.imageUrl}
+                      alt={item.title}
+                      className="h-full w-full object-contain"
+                      referrerPolicy="no-referrer"
+                      onError={(event) => {
+                        event.currentTarget.parentElement.style.display =
+                          "none";
+                      }}
+                    />
+                  </div>
+                )}
+
+                <div className="flex flex-wrap gap-2">
+                  <span
+                    className={`rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ${getTypeBadgeClasses(
+                      item.type
+                    )}`}
+                  >
+                    {item.type}
+                  </span>
+                  <span
+                    className={`rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ${getStatusBadgeClasses(
+                      item.status
+                    )}`}
+                  >
+                    {item.status}
+                  </span>
+                </div>
+
+                <h3 className="mt-3 font-semibold text-[#1C1B19]">
+                  {item.title}
+                </h3>
+
+                <p className="mt-1 line-clamp-2 text-sm text-[#6B6560]">
+                  {item.description}
+                </p>
+
+                <div className="mt-3 space-y-1 border-t border-[#E5E0D8] pt-3 text-xs text-[#6B6560]">
+                  <p>
+                    {item.category} &middot; {item.building}
+                  </p>
+                  <p>{item.location}</p>
+                  <p className="pt-1 text-[#6B6560]/70">
+                    Reported{" "}
+                    {item.createdAt?.toDate
+                      ? item.createdAt.toDate().toLocaleDateString()
+                      : "date unavailable"}
+                  </p>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
     </section>
   );
 }
 
 export default ItemList;
+;
