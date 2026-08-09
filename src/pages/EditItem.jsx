@@ -1,4 +1,8 @@
-import { useEffect, useState } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { auth } from "../firebase/config";
 import {
@@ -6,6 +10,10 @@ import {
   updateItem,
 } from "../firebase/firestore";
 import { ITEM_CATEGORIES } from "../constants/categories";
+import {
+  uploadItemImage,
+  validateItemImage,
+} from "../services/cloudinary";
 
 function EditItem() {
   const { itemId } = useParams();
@@ -20,6 +28,7 @@ function EditItem() {
     location: "",
     type: "lost",
     imageUrl: "",
+    imagePath: "",
     dateReported: "",
   });
 
@@ -27,6 +36,26 @@ function EditItem() {
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [imageError, setImageError] = useState(false);
+  const [newImageFile, setNewImageFile] =
+    useState(null);
+
+  const [newImagePreviewUrl, setNewImagePreviewUrl] =
+    useState("");
+
+  const [shouldRemoveImage, setShouldRemoveImage] =
+    useState(false);
+
+  const imageInputRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (newImagePreviewUrl) {
+        URL.revokeObjectURL(
+          newImagePreviewUrl
+        );
+      }
+    };
+  }, [newImagePreviewUrl]);
 
   useEffect(() => {
     async function loadItem() {
@@ -68,6 +97,7 @@ function EditItem() {
             location: itemData.location || "",
             type: itemData.type || "lost",
             imageUrl: itemData.imageUrl || "",
+            imagePath: itemData.imagePath || "",
             dateReported: itemData.dateReported || "",
         };
 
@@ -88,18 +118,58 @@ function EditItem() {
     const { name, value } = event.target;
 
     setFormData((currentData) => ({
-        ...currentData,
-        [name]: value,
+      ...currentData,
+      [name]: value,
     }));
+  }
 
-    if (name === "imageUrl") {
-        setImageError(false);
+  function handleImageChange(event) {
+    const selectedFile = event.target.files?.[0];
+
+    if (!selectedFile) {
+      return;
     }
+
+    try {
+      validateItemImage(selectedFile);
+
+      setErrorMessage("");
+      setImageError(false);
+      setShouldRemoveImage(false);
+      setNewImageFile(selectedFile);
+      setNewImagePreviewUrl(
+        URL.createObjectURL(selectedFile)
+      );
+    } catch (error) {
+      setErrorMessage(error.message);
+      setNewImageFile(null);
+      setNewImagePreviewUrl("");
+
+      if (imageInputRef.current) {
+        imageInputRef.current.value = "";
+      }
     }
+  }
+
+  function removeImage() {
+    setNewImageFile(null);
+    setNewImagePreviewUrl("");
+    setShouldRemoveImage(true);
+    setImageError(false);
+
+    if (imageInputRef.current) {
+      imageInputRef.current.value = "";
+    }
+  }
 
     const hasChanges =
-    originalFormData !== null &&
-    JSON.stringify(formData) !== JSON.stringify(originalFormData);
+      originalFormData !== null &&
+      (
+        JSON.stringify(formData) !==
+          JSON.stringify(originalFormData) ||
+        newImageFile !== null ||
+        shouldRemoveImage
+      );
 
   async function handleSubmit(event) {
     event.preventDefault();
@@ -140,6 +210,30 @@ function EditItem() {
         return;
       }
 
+      let updatedImageUrl =
+        shouldRemoveImage
+          ? ""
+          : formData.imageUrl;
+
+      let updatedImagePath =
+        shouldRemoveImage
+          ? ""
+          : formData.imagePath;
+
+      if (newImageFile) {
+        const uploadedImage =
+          await uploadItemImage(
+            newImageFile,
+            currentUser.uid
+          );
+
+        updatedImageUrl =
+          uploadedImage.imageUrl;
+
+        updatedImagePath =
+          uploadedImage.imagePath;
+      }
+
       await updateItem(itemId, {
         title: formData.title.trim(),
         description: formData.description.trim(),
@@ -147,7 +241,8 @@ function EditItem() {
         building: formData.building.trim(),
         location: formData.location.trim(),
         type: formData.type,
-        imageUrl: formData.imageUrl.trim(),
+        imageUrl: updatedImageUrl,
+        imagePath: updatedImagePath,
         dateReported: formData.dateReported,
       });
 
@@ -197,6 +292,14 @@ function EditItem() {
       </main>
     );
   }
+
+  const displayedImageUrl =
+    newImagePreviewUrl ||
+    (
+      !shouldRemoveImage
+        ? formData.imageUrl
+        : ""
+    );
 
   return (
     <main className="mx-auto max-w-3xl">
@@ -323,19 +426,27 @@ function EditItem() {
         </div>
 
         <div className="mt-5">
-          <label className="block text-sm font-medium text-slate-700">
-            Image link
-            <input
-              name="imageUrl"
-              type="url"
-              value={formData.imageUrl}
-              onChange={handleChange}
-              className={inputClass}
-            />
-          </label>
+          <p className="text-sm font-medium text-slate-700">
+            Item image (optional)
+          </p>
 
-          {formData.imageUrl && (
+          <input
+            ref={imageInputRef}
+            id="edit-item-image"
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            onChange={handleImageChange}
+            className="sr-only"
+          />
+
+          {displayedImageUrl ? (
             <div className="mt-4">
+              <p className="mb-2 text-sm font-medium text-slate-700">
+                {newImageFile
+                  ? "New image preview"
+                  : "Current image"}
+              </p>
+
               {imageError ? (
                 <div className="flex h-40 items-center justify-center rounded-2xl border border-dashed border-red-300 bg-red-50 px-6 text-center">
                   <p className="text-sm text-red-700">
@@ -344,14 +455,48 @@ function EditItem() {
                 </div>
               ) : (
                 <img
-                  src={formData.imageUrl}
-                  alt="Updated item preview"
+                  src={displayedImageUrl}
+                  alt="Item preview"
                   className="h-72 w-full rounded-2xl border border-slate-200 bg-slate-50 object-contain p-2"
                   onError={() => setImageError(true)}
                   onLoad={() => setImageError(false)}
                 />
               )}
+
+              <div className="mt-3 flex flex-wrap gap-3">
+                <label
+                  htmlFor="edit-item-image"
+                  className="cursor-pointer rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                >
+                  Choose a different image
+                </label>
+
+                <button
+                  type="button"
+                  onClick={removeImage}
+                  className="rounded-xl border border-red-300 px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-50"
+                >
+                  Remove image
+                </button>
+              </div>
             </div>
+          ) : (
+            <label
+              htmlFor="edit-item-image"
+              className="mt-2 flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center transition hover:border-red-400 hover:bg-red-50"
+            >
+              <span className="text-3xl" aria-hidden="true">
+                📷
+              </span>
+
+              <span className="mt-3 text-sm font-semibold text-slate-800">
+                Click to choose an image
+              </span>
+
+              <span className="mt-1 text-xs text-slate-500">
+                JPG, PNG, or WebP — maximum 5 MB
+              </span>
+            </label>
           )}
         </div>
 
