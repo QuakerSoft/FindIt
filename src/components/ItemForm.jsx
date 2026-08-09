@@ -1,7 +1,15 @@
-import { useState } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { auth } from "../firebase/config";
 import { createItem, getUserProfile } from "../firebase/firestore";
 import { ITEM_CATEGORIES } from "../constants/categories";
+import {
+  uploadItemImage,
+  validateItemImage,
+} from "../services/cloudinary";
 
 function ItemForm() {
   const [formData, setFormData] = useState({
@@ -11,12 +19,26 @@ function ItemForm() {
     building: "",
     location: "",
     type: "lost",
-    imageUrl: "",
     dateReported: "",
   });
   const [message, setMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [imageError, setImageError] = useState(false);
+  const [imageFile, setImageFile] =
+    useState(null);
+
+  const [imagePreviewUrl, setImagePreviewUrl] =
+    useState("");
+
+  const imageInputRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (imagePreviewUrl) {
+        URL.revokeObjectURL(imagePreviewUrl);
+      }
+    };
+  }, [imagePreviewUrl]);
 
   function handleChange(event) {
     const { name, value } = event.target;
@@ -24,19 +46,57 @@ function ItemForm() {
       ...previousData,
       [name]: value,
     }));
-  
-    if (name === "imageUrl") {
-      setImageError(false);
+  }
+
+  function handleImageChange(event) {
+  const selectedFile = event.target.files?.[0];
+
+  if (!selectedFile) {
+    return;
+  }
+
+  try {
+    validateItemImage(selectedFile);
+
+    setMessage("");
+    setImageError(false);
+    setImageFile(selectedFile);
+    setImagePreviewUrl(
+      URL.createObjectURL(selectedFile)
+    );
+  } catch (error) {
+    setMessage(error.message);
+    setImageFile(null);
+    setImagePreviewUrl("");
+
+    if (imageInputRef.current) {
+      imageInputRef.current.value = "";
     }
   }
+}
+
+function removeSelectedImage() {
+  setImageFile(null);
+  setImagePreviewUrl("");
+  setImageError(false);
+
+  if (imageInputRef.current) {
+    imageInputRef.current.value = "";
+  }
+}
 
   async function handleSubmit(event) {
     event.preventDefault();
+
     const currentUser = auth.currentUser;
+
     if (!currentUser) {
-      setMessage("You must be logged in to report an item.");
+      setMessage(
+        "You must be logged in to report an item."
+      );
       return;
     }
+
     try {
       setIsSubmitting(true);
       setMessage("");
@@ -54,12 +114,30 @@ function ItemForm() {
         );
       }
 
+      let imageUrl = "";
+      let imagePath = "";
+
+      if (imageFile) {
+        const uploadedImage =
+          await uploadItemImage(
+            imageFile,
+            currentUser.uid
+          );
+
+        imageUrl = uploadedImage.imageUrl;
+        imagePath = uploadedImage.imagePath;
+      }
+
       await createItem({
         ...formData,
+        imageUrl,
+        imagePath,
         ownerId: currentUser.uid,
         ownerFirstName,
       });
+
       setMessage("Item reported successfully!");
+
       setFormData({
         title: "",
         description: "",
@@ -67,14 +145,23 @@ function ItemForm() {
         building: "",
         location: "",
         type: "lost",
-        imageUrl: "",
         dateReported: "",
       });
 
+      setImageFile(null);
+      setImagePreviewUrl("");
       setImageError(false);
-      
+
+      if (imageInputRef.current) {
+        imageInputRef.current.value = "";
+      }
     } catch (error) {
-      setMessage(error.message);
+      console.error("Item submission error:", error);
+
+      setMessage(
+        error.message ||
+          "Unable to submit this report."
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -190,23 +277,37 @@ function ItemForm() {
       </div>
 
       <div className="mt-5">
-        <label className="block text-sm font-medium text-slate-700">
-          Image link (optional)
-          <input
-            name="imageUrl"
-            type="url"
-            placeholder="Paste a direct link to a photo"
-            value={formData.imageUrl}
-            onChange={handleChange}
-            className={inputClass}
-          />
-        </label>
-
-        <p className="mt-2 text-xs text-slate-500">
-          Use a direct image link ending in something like .jpg, .png, or .webp.
+        <p className="text-sm font-medium text-slate-700">
+          Item image (optional)
         </p>
 
-        {formData.imageUrl && (
+        <input
+          ref={imageInputRef}
+          id="item-image"
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          onChange={handleImageChange}
+          className="sr-only"
+        />
+
+        {!imagePreviewUrl ? (
+          <label
+            htmlFor="item-image"
+            className="mt-2 flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center transition hover:border-red-400 hover:bg-red-50"
+          >
+            <span className="text-3xl" aria-hidden="true">
+              📷
+            </span>
+
+            <span className="mt-3 text-sm font-semibold text-slate-800">
+              Click to choose an image
+            </span>
+
+            <span className="mt-1 text-xs text-slate-500">
+              JPG, PNG, or WebP — maximum 5 MB
+            </span>
+          </label>
+        ) : (
           <div className="mt-4">
             <p className="mb-2 text-sm font-medium text-slate-700">
               Image preview
@@ -215,19 +316,35 @@ function ItemForm() {
             {imageError ? (
               <div className="flex h-40 items-center justify-center rounded-2xl border border-dashed border-red-300 bg-red-50 px-6 text-center">
                 <p className="text-sm text-red-700">
-                  Unable to preview this image. Check that the link points directly to
-                  an image.
+                  Unable to preview this image.
                 </p>
               </div>
             ) : (
               <img
-                src={formData.imageUrl}
-                alt="Item preview"
+                src={imagePreviewUrl}
+                alt="Selected item preview"
                 className="h-72 w-full rounded-2xl border border-slate-200 bg-slate-50 object-contain p-2"
                 onError={() => setImageError(true)}
                 onLoad={() => setImageError(false)}
               />
             )}
+
+            <div className="mt-3 flex flex-wrap gap-3">
+              <label
+                htmlFor="item-image"
+                className="cursor-pointer rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                Choose a different image
+              </label>
+
+              <button
+                type="button"
+                onClick={removeSelectedImage}
+                className="rounded-xl border border-red-300 px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-50"
+              >
+                Remove image
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -237,7 +354,7 @@ function ItemForm() {
         <button
           type="submit"
           disabled={isSubmitting}
-          className="rounded-xl bg-[#A6192E] px-5 py-3 text-sm font-semibold text-white shadow-sm shadow-red-100 border border-transparent transition hover:bg-white hover:text-[#A6192E] hover:border-[#A6192E]"
+          className="rounded-xl border border-transparent bg-[#A6192E] px-5 py-3 text-sm font-semibold text-white shadow-sm shadow-red-100 transition hover:border-[#A6192E] hover:bg-white hover:text-[#A6192E] disabled:cursor-not-allowed disabled:opacity-60"
         >
           {isSubmitting ? "Submitting..." : "Submit report"}
         </button>

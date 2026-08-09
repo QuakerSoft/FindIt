@@ -40,6 +40,7 @@ export async function createItem(itemData) {
         moderationStatus: "visible",
         ownerViewedModeration: true,
         imageUrl: itemData.imageUrl || "",
+        imagePath: itemData.imagePath || "",
         ownerId: itemData.ownerId,
         ownerFirstName,
         dateReported: itemData.dateReported,
