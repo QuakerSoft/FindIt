@@ -5,6 +5,7 @@ import {
   createClaim,
   getClaimsByOwner,
   getItemById,
+  getItemMatches,
   getUserProfile,
 } from "../firebase/firestore";
 import ReportPost from "../components/ReportPost";
@@ -35,6 +36,9 @@ function ItemDetails() {
   const [showSubmitConfirmation, setShowSubmitConfirmation] = useState(false);
   const [pendingClaimCount, setPendingClaimCount] = useState(0);
 
+  const [possibleMatches, setPossibleMatches] = useState([]);
+  const [isLoadingMatches, setIsLoadingMatches] = useState(true);
+
   useEffect(() => {
     async function loadItem() {
       try {
@@ -59,6 +63,40 @@ function ItemDetails() {
 
     loadItem();
   }, [itemId]);
+
+  useEffect(() => {
+    async function loadMatches() {
+      const isCurrentOwner =
+        currentUser && item && currentUser.uid === item.ownerId;
+
+      if (!isCurrentOwner) {
+        setPossibleMatches([]);
+        setIsLoadingMatches(false);
+        return;
+      }
+
+      try {
+        setIsLoadingMatches(true);
+        const matches = await getItemMatches(item.id);
+        setPossibleMatches(matches);
+      } catch (error) {
+        // Matches are a nice-to-have suggestion layer — never block
+        // the rest of the page if this fails.
+        console.error("Unable to load possible matches:", error);
+        setPossibleMatches([]);
+      } finally {
+        setIsLoadingMatches(false);
+      }
+    }
+
+    // Wait until both the item and auth state have resolved before
+    // deciding whether to fetch — avoids a permission-denied read for
+    // visitors who aren't the item's owner (rules restrict matches to
+    // owner-only reads).
+    if (item && !isAuthLoading) {
+      loadMatches();
+    }
+  }, [item, currentUser, isAuthLoading]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(
@@ -493,6 +531,44 @@ function ItemDetails() {
             )}
           </div>
         )}
+        {isOwner && !isLoadingMatches && possibleMatches.length > 0 && (
+          <div className="mt-6 rounded-2xl border border-[#A6192E]/20 bg-[#FAF7F2] p-5">
+            <h2 className="text-lg font-semibold text-slate-900">
+              Possible Matches
+            </h2>
+            <p className="mt-1 text-sm text-slate-600">
+              These {item.type === "lost" ? "found" : "lost"} reports
+              share similar details with your post.
+            </p>
+
+            <div className="mt-4 space-y-3">
+              {possibleMatches.map((match) => (
+                <Link
+                  key={match.matchedItemId}
+                  to={`/items/${match.matchedItemId}`}
+                  className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3 transition hover:border-[#A6192E] hover:bg-red-50"
+                >
+                  <div>
+                    <p className="font-medium text-slate-900">
+                      {match.item?.title || "Untitled report"}
+                    </p>
+                    <p className="text-sm text-slate-600">
+                      {match.item?.category}
+                      {match.item?.building
+                        ? ` · ${match.item.building}`
+                        : ""}
+                    </p>
+                  </div>
+
+                  <span className="ml-4 shrink-0 rounded-full bg-[#A6192E]/10 px-3 py-1 text-xs font-semibold text-[#A6192E]">
+                    {Math.round(match.score * 100)}% match
+                  </span>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+
         {isOwner && pendingClaimCount > 0 && (
           <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-4">
             <p className="font-semibold text-amber-900">

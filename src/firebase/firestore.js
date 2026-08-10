@@ -16,6 +16,7 @@ import {
 } from "firebase/firestore";
 
 import { db } from "./config";
+import { rankMatches } from "../utils/matching";
 
 export async function createItem(itemData) {
     const ownerFirstName =
@@ -41,6 +42,7 @@ export async function createItem(itemData) {
         ownerViewedModeration: true,
         imageUrl: itemData.imageUrl || "",
         imagePath: itemData.imagePath || "",
+        aiTags: itemData.aiTags || [],
         ownerId: itemData.ownerId,
         ownerFirstName,
         dateReported: itemData.dateReported,
@@ -49,7 +51,95 @@ export async function createItem(itemData) {
 
     const documentReference = await addDoc(itemsRef, newItem);
 
+    // Best-effort: suggest matches against opposite-type items.
+    // Never let a matching failure block the item post itself.
+    try {
+        await findAndSaveMatches(documentReference.id, newItem);
+    } catch (error) {
+        console.error("findAndSaveMatches failed:", error);
+    }
+
     return documentReference.id;
+}
+
+/**
+ * Compares a newly created item against existing open items of the
+ * opposite type (lost <-> found), scores them with Jaccard similarity
+ * over their text + AI-generated tags, and saves the top candidates to
+ * a `matches` subcollection — written on BOTH sides, so the new item
+ * sees the match immediately, and each existing candidate it matched
+ * against also picks up the match on its own page (since matching only
+ * runs once, at creation time, older posts would never otherwise learn
+ * about a newer item that matches them).
+ */
+export async function findAndSaveMatches(newItemId, newItem) {
+    const oppositeType = newItem.type === "lost" ? "found" : "lost";
+    const candidates = await getItemsByType(oppositeType);
+
+    const topMatches = rankMatches(newItem, candidates);
+
+    if (topMatches.length === 0) return [];
+
+    const batch = writeBatch(db);
+
+    topMatches.forEach((match) => {
+        // Forward: record the match on the new item's own subcollection.
+        const forwardRef = doc(
+            db,
+            "items",
+            newItemId,
+            "matches",
+            match.itemId
+        );
+
+        batch.set(forwardRef, {
+            matchedItemId: match.itemId,
+            score: match.score,
+            createdAt: serverTimestamp(),
+        });
+
+        // Reverse: also record it on the matched candidate's subcollection,
+        // so that item's owner sees the new post as a possible match too.
+        const reverseRef = doc(
+            db,
+            "items",
+            match.itemId,
+            "matches",
+            newItemId
+        );
+
+        batch.set(reverseRef, {
+            matchedItemId: newItemId,
+            score: match.score,
+            createdAt: serverTimestamp(),
+        });
+    });
+
+    await batch.commit();
+
+    return topMatches;
+}
+
+/**
+ * Reads the saved matches for an item and hydrates each with the
+ * matched item's actual document data, ranked by score descending.
+ */
+export async function getItemMatches(itemId) {
+    const matchesRef = collection(db, "items", itemId, "matches");
+    const matchesSnapshot = await getDocs(matchesRef);
+
+    const matches = matchesSnapshot.docs
+        .map((matchDoc) => matchDoc.data())
+        .sort((a, b) => b.score - a.score);
+
+    const hydratedMatches = await Promise.all(
+        matches.map(async (match) => {
+            const matchedItem = await getItemById(match.matchedItemId);
+            return { ...match, item: matchedItem };
+        })
+    );
+
+    return hydratedMatches.filter((match) => match.item !== null);
 }
 
 export async function getAllItems() {
