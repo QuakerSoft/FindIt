@@ -66,7 +66,11 @@ export async function createItem(itemData) {
  * Compares a newly created item against existing open items of the
  * opposite type (lost <-> found), scores them with Jaccard similarity
  * over their text + AI-generated tags, and saves the top candidates to
- * a `matches` subcollection on the new item's document.
+ * a `matches` subcollection — written on BOTH sides, so the new item
+ * sees the match immediately, and each existing candidate it matched
+ * against also picks up the match on its own page (since matching only
+ * runs once, at creation time, older posts would never otherwise learn
+ * about a newer item that matches them).
  */
 export async function findAndSaveMatches(newItemId, newItem) {
     const oppositeType = newItem.type === "lost" ? "found" : "lost";
@@ -79,7 +83,8 @@ export async function findAndSaveMatches(newItemId, newItem) {
     const batch = writeBatch(db);
 
     topMatches.forEach((match) => {
-        const matchRef = doc(
+        // Forward: record the match on the new item's own subcollection.
+        const forwardRef = doc(
             db,
             "items",
             newItemId,
@@ -87,8 +92,24 @@ export async function findAndSaveMatches(newItemId, newItem) {
             match.itemId
         );
 
-        batch.set(matchRef, {
+        batch.set(forwardRef, {
             matchedItemId: match.itemId,
+            score: match.score,
+            createdAt: serverTimestamp(),
+        });
+
+        // Reverse: also record it on the matched candidate's subcollection,
+        // so that item's owner sees the new post as a possible match too.
+        const reverseRef = doc(
+            db,
+            "items",
+            match.itemId,
+            "matches",
+            newItemId
+        );
+
+        batch.set(reverseRef, {
+            matchedItemId: newItemId,
             score: match.score,
             createdAt: serverTimestamp(),
         });
