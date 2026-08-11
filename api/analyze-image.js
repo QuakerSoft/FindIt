@@ -1,9 +1,3 @@
-// Sends an item photo to Claude Haiku and asks it to return a short list
-// of descriptive tags (color, object type, brand, distinguishing features).
-// These tags get merged into the same tag set used by the Jaccard matching
-// in src/utils/matching.js — this endpoint only produces text, it does not
-// do any matching itself.
-
 const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages';
 const MODEL = 'claude-haiku-4-5-20251001';
 
