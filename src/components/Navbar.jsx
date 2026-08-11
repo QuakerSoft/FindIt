@@ -2,7 +2,12 @@ import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth } from "../firebase/config";
-import { checkIsAdmin, subscribeToClaimNotificationCount, subscribeToModerationNotificationCount } from "../firebase/firestore";
+import {
+  checkIsAdmin,
+  subscribeToClaimNotificationCount,
+  subscribeToModerationNotificationCount,
+  subscribeToStrongMatchNotificationCount,
+} from "../firebase/firestore";
 
 function Navbar() {
   const location = useLocation();
@@ -18,9 +23,15 @@ function Navbar() {
     setModerationNotificationCount,
   ] = useState(0);
 
+  const [
+    matchNotificationCount,
+    setMatchNotificationCount,
+  ] = useState(0);
+
   const notificationCount =
     claimNotificationCount +
-    moderationNotificationCount;
+    moderationNotificationCount +
+    matchNotificationCount;
   const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
@@ -35,6 +46,7 @@ function Navbar() {
           setIsAdmin(false);
           setClaimNotificationCount(0);
           setModerationNotificationCount(0);
+          setMatchNotificationCount(0);
           return;
         }
         try {
@@ -104,7 +116,32 @@ useEffect(() => {
 
   return unsubscribe;
 }, [currentUser]);
-  async function handleLogout() {
+
+useEffect(() => {
+  if (!currentUser) {
+    return;
+  }
+
+  const unsubscribe =
+    subscribeToStrongMatchNotificationCount(
+      currentUser.uid,
+      (newNotificationCount) => {
+        setMatchNotificationCount(
+          newNotificationCount
+        );
+      },
+      (error) => {
+        console.error(
+          "Unable to subscribe to strong-match notifications:",
+          error
+        );
+      }
+    );
+
+  return unsubscribe;
+}, [currentUser]);
+
+async function handleLogout() {
     try {
       await signOut(auth);
       navigate("/");
@@ -163,9 +200,10 @@ useEffect(() => {
               )}
                 <Link
                   to={
-                      moderationNotificationCount > 0
-                          ? "/account#my-reports"
-                          : "/account"
+                    moderationNotificationCount > 0 ||
+                    matchNotificationCount > 0
+                      ? "/account#my-reports"
+                      : "/account"
                   }
                   aria-label="Open account"
                     className={`ml-3 flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${

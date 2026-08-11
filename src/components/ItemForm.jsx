@@ -3,6 +3,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { useNavigate } from "react-router-dom";
 import { auth } from "../firebase/config";
 import { createItem, getUserProfile } from "../firebase/firestore";
 import { ITEM_CATEGORIES } from "../constants/categories";
@@ -10,50 +11,10 @@ import {
   uploadItemImage,
   validateItemImage,
 } from "../services/cloudinary";
-
-function fileToBase64(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      // reader.result looks like "data:image/png;base64,iVBORw0K..."
-      // strip the prefix, the API only wants the raw base64 payload.
-      const base64 = reader.result.split(",")[1];
-      resolve(base64);
-    };
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(file);
-  });
-}
-
-async function getAiTagsForImage(file) {
-  try {
-    const imageBase64 = await fileToBase64(file);
-
-    const response = await fetch("/api/analyze-image", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        imageBase64,
-        mediaType: file.type,
-      }),
-    });
-
-    if (!response.ok) {
-      console.error("AI tag analysis failed:", response.status);
-      return [];
-    }
-
-    const data = await response.json();
-    return Array.isArray(data.tags) ? data.tags : [];
-  } catch (error) {
-    // AI tagging is an enhancement, not a requirement — never block
-    // item submission if this fails for any reason.
-    console.error("AI tag analysis error:", error);
-    return [];
-  }
-}
+import { getAiTagsForImage } from "../services/imageAnalysis";
 
 function ItemForm() {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -175,7 +136,7 @@ function removeSelectedImage() {
         aiTags = await getAiTagsForImage(imageFile);
       }
 
-      await createItem({
+      const newItemId = await createItem({
         ...formData,
         imageUrl,
         imagePath,
@@ -183,8 +144,6 @@ function removeSelectedImage() {
         ownerId: currentUser.uid,
         ownerFirstName,
       });
-
-      setMessage("Item reported successfully!");
 
       setFormData({
         title: "",
@@ -203,6 +162,14 @@ function removeSelectedImage() {
       if (imageInputRef.current) {
         imageInputRef.current.value = "";
       }
+      
+      navigate(`/items/${newItemId}`, {
+        state: {
+          newlyPosted: true,
+          scrollToMatches: true,
+        },
+      });
+
     } catch (error) {
       console.error("Item submission error:", error);
 

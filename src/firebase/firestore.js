@@ -1,5 +1,6 @@
 import {
     collection,
+    collectionGroup,
     addDoc,
     getDocs,
     getDoc,
@@ -17,6 +18,8 @@ import {
 
 import { db } from "./config";
 import { rankMatches } from "../utils/matching";
+
+export const STRONG_MATCH_NOTIFICATION_THRESHOLD = 0.4;
 
 export async function createItem(itemData) {
     const ownerFirstName =
@@ -72,45 +75,143 @@ export async function createItem(itemData) {
  * runs once, at creation time, older posts would never otherwise learn
  * about a newer item that matches them).
  */
-export async function findAndSaveMatches(newItemId, newItem) {
-    const oppositeType = newItem.type === "lost" ? "found" : "lost";
-    const candidates = await getItemsByType(oppositeType);
+export async function clearItemMatches(itemId) {
+    if (!itemId) {
+        throw new Error("An item ID is required.");
+    }
 
-    const topMatches = rankMatches(newItem, candidates);
+    const matchesRef = collection(
+        db,
+        "items",
+        itemId,
+        "matches"
+    );
 
-    if (topMatches.length === 0) return [];
+    const matchesSnapshot = await getDocs(matchesRef);
+
+    if (matchesSnapshot.empty) {
+        return;
+    }
+
+    const batch = writeBatch(db);
+
+    matchesSnapshot.docs.forEach((matchDoc) => {
+        const matchData = matchDoc.data();
+        const matchedItemId =
+            matchData.matchedItemId;
+
+        batch.delete(matchDoc.ref);
+
+        if (matchedItemId) {
+            const reverseMatchRef = doc(
+                db,
+                "items",
+                matchedItemId,
+                "matches",
+                itemId
+            );
+
+            batch.delete(reverseMatchRef);
+        }
+    });
+
+    await batch.commit();
+}
+
+export async function findAndSaveMatches(itemId, itemData) {
+    if (!itemId) {
+        throw new Error("An item ID is required.");
+    }
+
+    await clearItemMatches(itemId);
+
+    if (
+        itemData.status !== "open" ||
+        itemData.moderationStatus !== "visible"
+    ) {
+        return [];
+    }
+
+    const oppositeType =
+        itemData.type === "lost"
+            ? "found"
+            : "lost";
+
+    const candidates = await getItemsByType(
+        oppositeType
+    );
+
+    const eligibleCandidates = candidates.filter(
+        (candidate) =>
+            candidate.id !== itemId &&
+            candidate.ownerId !== itemData.ownerId &&
+            candidate.status === "open" &&
+            candidate.moderationStatus === "visible"
+    );
+
+    const topMatches = rankMatches(
+        itemData,
+        eligibleCandidates
+    );
+
+    const candidatesById = new Map(
+        eligibleCandidates.map((candidate) => [
+            candidate.id,
+            candidate,
+        ])
+    );
+
+    if (topMatches.length === 0) {
+        return [];
+    }
 
     const batch = writeBatch(db);
 
     topMatches.forEach((match) => {
-        // Forward: record the match on the new item's own subcollection.
         const forwardRef = doc(
             db,
             "items",
-            newItemId,
+            itemId,
             "matches",
             match.itemId
         );
 
         batch.set(forwardRef, {
             matchedItemId: match.itemId,
+            ownerId: itemData.ownerId,
             score: match.score,
+
+            // The person creating/editing this report is taken
+            // directly to its matches, so don't notify them.
+            ownerViewed: true,
+
             createdAt: serverTimestamp(),
         });
 
-        // Reverse: also record it on the matched candidate's subcollection,
-        // so that item's owner sees the new post as a possible match too.
+                const matchedCandidate =
+            candidatesById.get(match.itemId);
+
+        if (!matchedCandidate?.ownerId) {
+            return;
+        }
+
         const reverseRef = doc(
             db,
             "items",
             match.itemId,
             "matches",
-            newItemId
+            itemId
         );
 
         batch.set(reverseRef, {
-            matchedItemId: newItemId,
+            matchedItemId: itemId,
+            ownerId: matchedCandidate.ownerId,
             score: match.score,
+
+            // This report already existed, so its owner
+            // has not seen the newly created match yet.
+            ownerViewed: false,
+
             createdAt: serverTimestamp(),
         });
     });
@@ -125,21 +226,190 @@ export async function findAndSaveMatches(newItemId, newItem) {
  * matched item's actual document data, ranked by score descending.
  */
 export async function getItemMatches(itemId) {
-    const matchesRef = collection(db, "items", itemId, "matches");
-    const matchesSnapshot = await getDocs(matchesRef);
+    const sourceItem = await getItemById(
+        itemId
+    );
+
+    if (!sourceItem) {
+        return [];
+    }
+
+    const matchesRef = collection(
+        db,
+        "items",
+        itemId,
+        "matches"
+    );
+
+    const matchesSnapshot = await getDocs(
+        matchesRef
+    );
 
     const matches = matchesSnapshot.docs
-        .map((matchDoc) => matchDoc.data())
-        .sort((a, b) => b.score - a.score);
+        .map((matchDoc) => ({
+            id: matchDoc.id,
+            ...matchDoc.data(),
+        }))
+        .sort(
+            (matchA, matchB) =>
+                matchB.score - matchA.score
+        );
 
     const hydratedMatches = await Promise.all(
         matches.map(async (match) => {
-            const matchedItem = await getItemById(match.matchedItemId);
-            return { ...match, item: matchedItem };
+            const matchedItem = await getItemById(
+                match.matchedItemId
+            );
+
+            return {
+                ...match,
+                item: matchedItem,
+            };
         })
     );
 
-    return hydratedMatches.filter((match) => match.item !== null);
+    return hydratedMatches.filter(
+        (match) =>
+            match.item !== null &&
+            match.item.ownerId !==
+                sourceItem.ownerId &&
+            match.item.status === "open" &&
+            match.item.moderationStatus ===
+                "visible"
+    );
+}
+
+export function subscribeToStrongMatchNotificationCount(
+    ownerId,
+    onCountChange,
+    onError
+) {
+    if (!ownerId) {
+        throw new Error("An owner ID is required.");
+    }
+
+    const allMatchesRef = collectionGroup(
+        db,
+        "matches"
+    );
+
+    const ownerMatchesQuery = query(
+        allMatchesRef,
+        where("ownerId", "==", ownerId)
+    );
+
+    return onSnapshot(
+        ownerMatchesQuery,
+        (querySnapshot) => {
+            const unreadStrongMatches =
+                querySnapshot.docs.filter(
+                    (matchDoc) => {
+                        const match =
+                            matchDoc.data();
+
+                        return (
+                            match.ownerViewed === false &&
+                            match.score >=
+                                STRONG_MATCH_NOTIFICATION_THRESHOLD
+                        );
+                    }
+                );
+
+            onCountChange(
+                unreadStrongMatches.length
+            );
+        },
+        (error) => {
+            console.error(
+                "Strong match notification error:",
+                error
+            );
+
+            onError?.(error);
+        }
+    );
+}
+
+export async function getUnreadStrongMatchItemIds(
+    ownerId
+) {
+    if (!ownerId) {
+        throw new Error("An owner ID is required.");
+    }
+
+    const allMatchesRef = collectionGroup(
+        db,
+        "matches"
+    );
+
+    const ownerMatchesQuery = query(
+        allMatchesRef,
+        where("ownerId", "==", ownerId)
+    );
+
+    const querySnapshot = await getDocs(
+        ownerMatchesQuery
+    );
+
+    return [
+        ...new Set(
+            querySnapshot.docs
+                .filter((matchDoc) => {
+                    const match =
+                        matchDoc.data();
+
+                    return (
+                        match.ownerViewed === false &&
+                        match.score >=
+                            STRONG_MATCH_NOTIFICATION_THRESHOLD
+                    );
+                })
+                .map(
+                    (matchDoc) =>
+                        matchDoc.ref.parent.parent?.id
+                )
+                .filter(Boolean)
+        ),
+    ];
+}
+
+export async function markItemMatchesViewed(
+    itemId
+) {
+    if (!itemId) {
+        throw new Error("An item ID is required.");
+    }
+
+    const matchesRef = collection(
+        db,
+        "items",
+        itemId,
+        "matches"
+    );
+
+    const matchesSnapshot = await getDocs(
+        matchesRef
+    );
+
+    const unreadMatches =
+        matchesSnapshot.docs.filter(
+            (matchDoc) =>
+                matchDoc.data().ownerViewed === false
+        );
+
+    if (unreadMatches.length === 0) {
+        return;
+    }
+
+    const batch = writeBatch(db);
+
+    unreadMatches.forEach((matchDoc) => {
+        batch.update(matchDoc.ref, {
+            ownerViewed: true,
+        });
+    });
+
+    await batch.commit();
 }
 
 export async function getAllItems() {
@@ -269,7 +539,28 @@ export async function dismissModerationReport(
         moderatedBy: adminId,
         moderatedAt: serverTimestamp(),
     });
-    await batch.commit();
+        await batch.commit();
+
+    try {
+        const dismissedItem = await getItemById(
+            itemId
+        );
+
+        if (
+            dismissedItem &&
+            dismissedItem.status === "open"
+        ) {
+            await findAndSaveMatches(
+                itemId,
+                dismissedItem
+            );
+        }
+    } catch (error) {
+        console.error(
+            "Unable to refresh dismissed item matches:",
+            error
+        );
+    }
 }
 
 export async function hideModeratedItem(
@@ -341,7 +632,16 @@ export async function hideModeratedItem(
         });
     });
 
-    await batch.commit();
+        await batch.commit();
+
+    try {
+        await clearItemMatches(itemId);
+    } catch (error) {
+        console.error(
+            "Unable to clear hidden item matches:",
+            error
+        );
+    }
 
     return pendingClaims.length;
 }
@@ -391,6 +691,27 @@ export async function restoreModeratedItem(
     });
 
     await batch.commit();
+
+    try {
+        const restoredItem = await getItemById(
+            itemId
+        );
+
+        if (
+            restoredItem &&
+            restoredItem.status === "open"
+        ) {
+            await findAndSaveMatches(
+                itemId,
+                restoredItem
+            );
+        }
+    } catch (error) {
+        console.error(
+            "Unable to refresh restored item matches:",
+            error
+        );
+    }
 }
 
 export async function updateItem(id, updateData) {
@@ -401,6 +722,22 @@ export async function updateItem(id, updateData) {
     const itemRef = doc(db, "items", id);
 
     await updateDoc(itemRef, updateData);
+
+    try {
+        const updatedItem = await getItemById(id);
+
+        if (updatedItem) {
+            await findAndSaveMatches(
+                id,
+                updatedItem
+            );
+        }
+    } catch (error) {
+        console.error(
+            "Unable to refresh item matches:",
+            error
+        );
+    }
 }
 
 export async function deleteItem(id) {
@@ -410,6 +747,9 @@ export async function deleteItem(id) {
 
     const itemRef = doc(db, "items", id);
 
+    // This must happen before deleting the item because the
+    // security rules use the item document to verify ownership.
+    await clearItemMatches(id);
     await deleteDoc(itemRef);
 }
 
@@ -967,7 +1307,16 @@ export async function markItemResolved(
         });
     });
 
-    await batch.commit();
+        await batch.commit();
+
+    try {
+        await clearItemMatches(itemId);
+    } catch (error) {
+        console.error(
+            "Unable to clear resolved item matches:",
+            error
+        );
+    }
 
     return pendingItemClaims.length;
 }
