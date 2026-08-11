@@ -11,6 +11,7 @@ import {
   getItemById,
   getItemMatches,
   getUserProfile,
+  markItemMatchesViewed,
 } from "../firebase/firestore";
 import ReportPost from "../components/ReportPost";
 import { onAuthStateChanged } from "firebase/auth";
@@ -82,8 +83,20 @@ function ItemDetails() {
 
       try {
         setIsLoadingMatches(true);
-        const matches = await getItemMatches(item.id);
+        const matches = await getItemMatches(
+          item.id
+        );
+
         setPossibleMatches(matches);
+
+        markItemMatchesViewed(item.id).catch(
+          (error) => {
+            console.error(
+              "Unable to mark matches as viewed:",
+              error
+            );
+          }
+        );
       } catch (error) {
         // Matches are a nice-to-have suggestion layer — never block
         // the rest of the page if this fails.

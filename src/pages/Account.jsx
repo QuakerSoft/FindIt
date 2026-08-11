@@ -7,6 +7,7 @@ import {
     getClaimsByOwner,
     getUserProfile,
     getItemsByOwner,
+    getUnreadStrongMatchItemIds,
     updateClaimStatus,
     updateUserProfile,
     markItemResolved,
@@ -78,6 +79,7 @@ function SafeMeetupNotice() {
 function Account() {
     const [profile, setProfile] = useState(null);
     const [items, setItems] = useState([]);
+    const [unreadMatchItemIds, setUnreadMatchItemIds] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [loadError, setLoadError] = useState("");
     
@@ -126,11 +128,22 @@ function Account() {
                     userItems,
                     receivedClaimsData,
                     submittedClaimsData,
-                ] = await Promise.all([
+                    unreadStrongMatchItemIds,
+                    ] = await Promise.all([
                     getUserProfile(currentUser.uid),
                     getItemsByOwner(currentUser.uid),
                     getClaimsByOwner(currentUser.uid),
                     getClaimsByClaimant(currentUser.uid),
+                    getUnreadStrongMatchItemIds(
+                        currentUser.uid
+                        ).catch((error) => {
+                        console.error(
+                            "Unable to load strong-match notifications:",
+                            error
+                        );
+
+                        return [];
+                    }),
                 ]);
 
                 const sortNewestFirst = (claims) =>
@@ -148,6 +161,9 @@ function Account() {
 
                 setProfile(profileData);
                 setItems(userItems);
+                setUnreadMatchItemIds(
+                    unreadStrongMatchItemIds
+                    );
                 markModerationNoticesViewed(
                     userItems
                 ).catch((error) => {
@@ -1412,10 +1428,16 @@ function Account() {
                                 </h3>
 
                                 {canViewPossibleMatches(item) && (
-                                    <span className="rounded-full bg-[#A6192E]/10 px-3 py-1 text-xs font-semibold text-[#A6192E]">
-                                    Matching active
-                                    </span>
-                                )}
+                                    unreadMatchItemIds.includes(item.id) ? (
+                                        <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800">
+                                        New strong match
+                                        </span>
+                                    ) : (
+                                        <span className="rounded-full bg-[#A6192E]/10 px-3 py-1 text-xs font-semibold text-[#A6192E]">
+                                        Matching active
+                                        </span>
+                                    )
+                                    )}
                             </div>
 
                             {item.moderationStatus === "pending_review" && (

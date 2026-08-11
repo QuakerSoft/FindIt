@@ -1,5 +1,6 @@
 import {
     collection,
+    collectionGroup,
     addDoc,
     getDocs,
     getDoc,
@@ -17,6 +18,8 @@ import {
 
 import { db } from "./config";
 import { rankMatches } from "../utils/matching";
+
+export const STRONG_MATCH_NOTIFICATION_THRESHOLD = 0.4;
 
 export async function createItem(itemData) {
     const ownerFirstName =
@@ -141,6 +144,7 @@ export async function findAndSaveMatches(itemId, itemData) {
     const eligibleCandidates = candidates.filter(
         (candidate) =>
             candidate.id !== itemId &&
+            candidate.ownerId !== itemData.ownerId &&
             candidate.status === "open" &&
             candidate.moderationStatus === "visible"
     );
@@ -148,6 +152,13 @@ export async function findAndSaveMatches(itemId, itemData) {
     const topMatches = rankMatches(
         itemData,
         eligibleCandidates
+    );
+
+    const candidatesById = new Map(
+        eligibleCandidates.map((candidate) => [
+            candidate.id,
+            candidate,
+        ])
     );
 
     if (topMatches.length === 0) {
@@ -167,9 +178,22 @@ export async function findAndSaveMatches(itemId, itemData) {
 
         batch.set(forwardRef, {
             matchedItemId: match.itemId,
+            ownerId: itemData.ownerId,
             score: match.score,
+
+            // The person creating/editing this report is taken
+            // directly to its matches, so don't notify them.
+            ownerViewed: true,
+
             createdAt: serverTimestamp(),
         });
+
+                const matchedCandidate =
+            candidatesById.get(match.itemId);
+
+        if (!matchedCandidate?.ownerId) {
+            return;
+        }
 
         const reverseRef = doc(
             db,
@@ -181,7 +205,13 @@ export async function findAndSaveMatches(itemId, itemData) {
 
         batch.set(reverseRef, {
             matchedItemId: itemId,
+            ownerId: matchedCandidate.ownerId,
             score: match.score,
+
+            // This report already existed, so its owner
+            // has not seen the newly created match yet.
+            ownerViewed: false,
+
             createdAt: serverTimestamp(),
         });
     });
@@ -196,6 +226,14 @@ export async function findAndSaveMatches(itemId, itemData) {
  * matched item's actual document data, ranked by score descending.
  */
 export async function getItemMatches(itemId) {
+    const sourceItem = await getItemById(
+        itemId
+    );
+
+    if (!sourceItem) {
+        return [];
+    }
+
     const matchesRef = collection(
         db,
         "items",
@@ -208,9 +246,13 @@ export async function getItemMatches(itemId) {
     );
 
     const matches = matchesSnapshot.docs
-        .map((matchDoc) => matchDoc.data())
-        .sort((matchA, matchB) =>
-            matchB.score - matchA.score
+        .map((matchDoc) => ({
+            id: matchDoc.id,
+            ...matchDoc.data(),
+        }))
+        .sort(
+            (matchA, matchB) =>
+                matchB.score - matchA.score
         );
 
     const hydratedMatches = await Promise.all(
@@ -229,9 +271,145 @@ export async function getItemMatches(itemId) {
     return hydratedMatches.filter(
         (match) =>
             match.item !== null &&
+            match.item.ownerId !==
+                sourceItem.ownerId &&
             match.item.status === "open" &&
-            match.item.moderationStatus === "visible"
+            match.item.moderationStatus ===
+                "visible"
     );
+}
+
+export function subscribeToStrongMatchNotificationCount(
+    ownerId,
+    onCountChange,
+    onError
+) {
+    if (!ownerId) {
+        throw new Error("An owner ID is required.");
+    }
+
+    const allMatchesRef = collectionGroup(
+        db,
+        "matches"
+    );
+
+    const ownerMatchesQuery = query(
+        allMatchesRef,
+        where("ownerId", "==", ownerId)
+    );
+
+    return onSnapshot(
+        ownerMatchesQuery,
+        (querySnapshot) => {
+            const unreadStrongMatches =
+                querySnapshot.docs.filter(
+                    (matchDoc) => {
+                        const match =
+                            matchDoc.data();
+
+                        return (
+                            match.ownerViewed === false &&
+                            match.score >=
+                                STRONG_MATCH_NOTIFICATION_THRESHOLD
+                        );
+                    }
+                );
+
+            onCountChange(
+                unreadStrongMatches.length
+            );
+        },
+        (error) => {
+            console.error(
+                "Strong match notification error:",
+                error
+            );
+
+            onError?.(error);
+        }
+    );
+}
+
+export async function getUnreadStrongMatchItemIds(
+    ownerId
+) {
+    if (!ownerId) {
+        throw new Error("An owner ID is required.");
+    }
+
+    const allMatchesRef = collectionGroup(
+        db,
+        "matches"
+    );
+
+    const ownerMatchesQuery = query(
+        allMatchesRef,
+        where("ownerId", "==", ownerId)
+    );
+
+    const querySnapshot = await getDocs(
+        ownerMatchesQuery
+    );
+
+    return [
+        ...new Set(
+            querySnapshot.docs
+                .filter((matchDoc) => {
+                    const match =
+                        matchDoc.data();
+
+                    return (
+                        match.ownerViewed === false &&
+                        match.score >=
+                            STRONG_MATCH_NOTIFICATION_THRESHOLD
+                    );
+                })
+                .map(
+                    (matchDoc) =>
+                        matchDoc.ref.parent.parent?.id
+                )
+                .filter(Boolean)
+        ),
+    ];
+}
+
+export async function markItemMatchesViewed(
+    itemId
+) {
+    if (!itemId) {
+        throw new Error("An item ID is required.");
+    }
+
+    const matchesRef = collection(
+        db,
+        "items",
+        itemId,
+        "matches"
+    );
+
+    const matchesSnapshot = await getDocs(
+        matchesRef
+    );
+
+    const unreadMatches =
+        matchesSnapshot.docs.filter(
+            (matchDoc) =>
+                matchDoc.data().ownerViewed === false
+        );
+
+    if (unreadMatches.length === 0) {
+        return;
+    }
+
+    const batch = writeBatch(db);
+
+    unreadMatches.forEach((matchDoc) => {
+        batch.update(matchDoc.ref, {
+            ownerViewed: true,
+        });
+    });
+
+    await batch.commit();
 }
 
 export async function getAllItems() {
