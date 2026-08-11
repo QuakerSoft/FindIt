@@ -102,6 +102,13 @@ function Account() {
     const [lastName, setLastName] = useState("");
     const [phoneNumber, setPhoneNumber] = useState("");
     const [contactPreference, setContactPreference] = useState("email");
+    
+    function canViewPossibleMatches(item) {
+        return (
+            item.status === "open" &&
+            item.moderationStatus === "visible"
+        );
+        }
 
     useEffect(() => {
         async function loadAccount() {
@@ -845,7 +852,8 @@ function Account() {
                         {receivedClaims.map((claim) => (
                             <article
                                 key={claim.id}
-                                className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+                                id={`received-request-${claim.id}`}
+                                className="scroll-mt-24 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
                             >
                                 <div className="flex flex-wrap items-start justify-between gap-3">
                                     <div>
@@ -963,9 +971,13 @@ function Account() {
 
                                 <Link
                                     to={`/items/${claim.itemId}`}
-                                    state={{ from: "account" }}
+                                    state={{
+                                        from: "account",
+                                        returnTo:
+                                        `/account#received-request-${claim.id}`,
+                                    }}
                                     className="mt-4 inline-block text-sm font-semibold text-red-600 hover:text-red-700"
-                                >
+                                    >
                                     View Report →
                                 </Link>
                             </article>
@@ -992,7 +1004,8 @@ function Account() {
                         {submittedClaims.map((claim) => (
                             <article
                                 key={claim.id}
-                                className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+                                id={`submitted-request-${claim.id}`}
+                                className="scroll-mt-24 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
                             >
                                 <div className="flex flex-wrap items-start justify-between gap-3">
                                     <div>
@@ -1088,9 +1101,13 @@ function Account() {
 
                                 <Link
                                     to={`/items/${claim.itemId}`}
-                                    state={{ from: "account" }}
+                                    state={{
+                                        from: "account",
+                                        returnTo:
+                                        `/account#submitted-request-${claim.id}`,
+                                    }}
                                     className="mt-4 inline-block text-sm font-semibold text-red-600 hover:text-red-700"
-                                >
+                                    >
                                     View Report →
                                 </Link>
                             </article>
@@ -1369,6 +1386,12 @@ function Account() {
                 My Reports
             </h2>
 
+            <p className="mt-2 text-sm text-slate-600">
+                Possible matches may appear as new reports are
+                posted. Open any active report below to review
+                its latest suggestions.
+            </p>
+
             {items.length === 0 ? (
                 <p className="mt-3 text-slate-600">
                     You haven't posted any lost or found items yet.
@@ -1378,13 +1401,22 @@ function Account() {
                     {items.map((item) => (
                         <article
                             key={item.id}
-                            className="rounded-xl border border-slate-200 p-4"
+                            id={`report-${item.id}`}
+                            className="scroll-mt-24 rounded-xl border border-slate-200 p-4"
                         >
                             <ReportImage item={item} />
 
-                            <h3 className="text-lg font-semibold">
-                                {item.title}
-                            </h3>
+                            <div className="flex flex-wrap items-start justify-between gap-3">
+                                <h3 className="text-lg font-semibold">
+                                    {item.title}
+                                </h3>
+
+                                {canViewPossibleMatches(item) && (
+                                    <span className="rounded-full bg-[#A6192E]/10 px-3 py-1 text-xs font-semibold text-[#A6192E]">
+                                    Matching active
+                                    </span>
+                                )}
+                            </div>
 
                             {item.moderationStatus === "pending_review" && (
                                 <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3">
@@ -1455,10 +1487,22 @@ function Account() {
                             <div className="mt-5 flex flex-wrap gap-3">
                                 <Link
                                     to={`/items/${item.id}`}
-                                    state={{ from: "account" }}
-                                    className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                                >
-                                    View Report
+                                    state={{
+                                    from: "account",
+                                    returnTo:
+                                        `/account#report-${item.id}`,
+                                    scrollToMatches:
+                                        canViewPossibleMatches(item),
+                                    }}
+                                    className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
+                                        canViewPossibleMatches(item)
+                                        ? "border border-[#A6192E] bg-[#A6192E] text-white hover:bg-red-800"
+                                        : "border border-slate-300 text-slate-700 hover:bg-slate-50"
+                                    }`}
+                                    >
+                                    {canViewPossibleMatches(item)
+                                        ? "View Possible Matches"
+                                        : "View Report"}
                                 </Link>
 
                                 {item.status === "open" &&

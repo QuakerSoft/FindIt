@@ -357,7 +357,8 @@ function ItemDetails() {
   const backPath = cameFromMatch
     ? location.state.returnTo
     : cameFromAccount
-      ? "/account"
+      ? location.state?.returnTo ||
+        "/account#my-reports"
       : cameFromAdmin
         ? "/admin"
         : "/browse";
@@ -371,10 +372,10 @@ function ItemDetails() {
         : "Back to Browse";
 
   const backState = cameFromMatch
-  ? {
-      scrollToMatches: true,
-    }
-  : undefined;
+    ? location.state?.returnState || {
+        scrollToMatches: true,
+      }
+    : undefined;
 
   if (isLoading || isAuthLoading) {
     return (
@@ -618,9 +619,14 @@ function ItemDetails() {
                     key={match.matchedItemId}
                     to={`/items/${match.matchedItemId}`}
                     state={{
-                      from: "match",
-                      returnTo: `/items/${item.id}`,
-                    }}
+                    from: "match",
+                    returnTo: `/items/${item.id}`,
+                    returnState: {
+                      ...location.state,
+                      scrollToMatches: true,
+                      newlyPosted: false,
+                    },
+                  }}
                     className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3 transition hover:border-[#A6192E] hover:bg-red-50"
                   >
                     <div>
