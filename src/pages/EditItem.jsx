@@ -14,6 +14,7 @@ import {
   uploadItemImage,
   validateItemImage,
 } from "../services/cloudinary";
+import { getAiTagsForImage } from "../services/imageAnalysis";
 
 function EditItem() {
   const { itemId } = useParams();
@@ -220,6 +221,13 @@ function EditItem() {
           ? ""
           : formData.imagePath;
 
+      let updatedAiTags =
+        shouldRemoveImage
+          ? []
+          : Array.isArray(existingItem.aiTags)
+            ? existingItem.aiTags
+            : [];
+
       if (newImageFile) {
         const uploadedImage =
           await uploadItemImage(
@@ -232,6 +240,15 @@ function EditItem() {
 
         updatedImagePath =
           uploadedImage.imagePath;
+
+        const analyzedTags =
+          await getAiTagsForImage(
+            newImageFile
+          );
+
+        if (Array.isArray(analyzedTags)) {
+          updatedAiTags = analyzedTags;
+        }
       }
 
       await updateItem(itemId, {
@@ -243,6 +260,7 @@ function EditItem() {
         type: formData.type,
         imageUrl: updatedImageUrl,
         imagePath: updatedImagePath,
+        aiTags: updatedAiTags,
         dateReported: formData.dateReported,
       });
 

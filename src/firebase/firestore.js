@@ -72,22 +72,95 @@ export async function createItem(itemData) {
  * runs once, at creation time, older posts would never otherwise learn
  * about a newer item that matches them).
  */
-export async function findAndSaveMatches(newItemId, newItem) {
-    const oppositeType = newItem.type === "lost" ? "found" : "lost";
-    const candidates = await getItemsByType(oppositeType);
+export async function clearItemMatches(itemId) {
+    if (!itemId) {
+        throw new Error("An item ID is required.");
+    }
 
-    const topMatches = rankMatches(newItem, candidates);
+    const matchesRef = collection(
+        db,
+        "items",
+        itemId,
+        "matches"
+    );
 
-    if (topMatches.length === 0) return [];
+    const matchesSnapshot = await getDocs(matchesRef);
+
+    if (matchesSnapshot.empty) {
+        return;
+    }
+
+    const batch = writeBatch(db);
+
+    matchesSnapshot.docs.forEach((matchDoc) => {
+        const matchData = matchDoc.data();
+        const matchedItemId =
+            matchData.matchedItemId;
+
+        batch.delete(matchDoc.ref);
+
+        if (matchedItemId) {
+            const reverseMatchRef = doc(
+                db,
+                "items",
+                matchedItemId,
+                "matches",
+                itemId
+            );
+
+            batch.delete(reverseMatchRef);
+        }
+    });
+
+    await batch.commit();
+}
+
+export async function findAndSaveMatches(itemId, itemData) {
+    if (!itemId) {
+        throw new Error("An item ID is required.");
+    }
+
+    await clearItemMatches(itemId);
+
+    if (
+        itemData.status !== "open" ||
+        itemData.moderationStatus !== "visible"
+    ) {
+        return [];
+    }
+
+    const oppositeType =
+        itemData.type === "lost"
+            ? "found"
+            : "lost";
+
+    const candidates = await getItemsByType(
+        oppositeType
+    );
+
+    const eligibleCandidates = candidates.filter(
+        (candidate) =>
+            candidate.id !== itemId &&
+            candidate.status === "open" &&
+            candidate.moderationStatus === "visible"
+    );
+
+    const topMatches = rankMatches(
+        itemData,
+        eligibleCandidates
+    );
+
+    if (topMatches.length === 0) {
+        return [];
+    }
 
     const batch = writeBatch(db);
 
     topMatches.forEach((match) => {
-        // Forward: record the match on the new item's own subcollection.
         const forwardRef = doc(
             db,
             "items",
-            newItemId,
+            itemId,
             "matches",
             match.itemId
         );
@@ -98,18 +171,16 @@ export async function findAndSaveMatches(newItemId, newItem) {
             createdAt: serverTimestamp(),
         });
 
-        // Reverse: also record it on the matched candidate's subcollection,
-        // so that item's owner sees the new post as a possible match too.
         const reverseRef = doc(
             db,
             "items",
             match.itemId,
             "matches",
-            newItemId
+            itemId
         );
 
         batch.set(reverseRef, {
-            matchedItemId: newItemId,
+            matchedItemId: itemId,
             score: match.score,
             createdAt: serverTimestamp(),
         });
@@ -125,21 +196,42 @@ export async function findAndSaveMatches(newItemId, newItem) {
  * matched item's actual document data, ranked by score descending.
  */
 export async function getItemMatches(itemId) {
-    const matchesRef = collection(db, "items", itemId, "matches");
-    const matchesSnapshot = await getDocs(matchesRef);
+    const matchesRef = collection(
+        db,
+        "items",
+        itemId,
+        "matches"
+    );
+
+    const matchesSnapshot = await getDocs(
+        matchesRef
+    );
 
     const matches = matchesSnapshot.docs
         .map((matchDoc) => matchDoc.data())
-        .sort((a, b) => b.score - a.score);
+        .sort((matchA, matchB) =>
+            matchB.score - matchA.score
+        );
 
     const hydratedMatches = await Promise.all(
         matches.map(async (match) => {
-            const matchedItem = await getItemById(match.matchedItemId);
-            return { ...match, item: matchedItem };
+            const matchedItem = await getItemById(
+                match.matchedItemId
+            );
+
+            return {
+                ...match,
+                item: matchedItem,
+            };
         })
     );
 
-    return hydratedMatches.filter((match) => match.item !== null);
+    return hydratedMatches.filter(
+        (match) =>
+            match.item !== null &&
+            match.item.status === "open" &&
+            match.item.moderationStatus === "visible"
+    );
 }
 
 export async function getAllItems() {
@@ -269,7 +361,28 @@ export async function dismissModerationReport(
         moderatedBy: adminId,
         moderatedAt: serverTimestamp(),
     });
-    await batch.commit();
+        await batch.commit();
+
+    try {
+        const dismissedItem = await getItemById(
+            itemId
+        );
+
+        if (
+            dismissedItem &&
+            dismissedItem.status === "open"
+        ) {
+            await findAndSaveMatches(
+                itemId,
+                dismissedItem
+            );
+        }
+    } catch (error) {
+        console.error(
+            "Unable to refresh dismissed item matches:",
+            error
+        );
+    }
 }
 
 export async function hideModeratedItem(
@@ -341,7 +454,16 @@ export async function hideModeratedItem(
         });
     });
 
-    await batch.commit();
+        await batch.commit();
+
+    try {
+        await clearItemMatches(itemId);
+    } catch (error) {
+        console.error(
+            "Unable to clear hidden item matches:",
+            error
+        );
+    }
 
     return pendingClaims.length;
 }
@@ -391,6 +513,27 @@ export async function restoreModeratedItem(
     });
 
     await batch.commit();
+
+    try {
+        const restoredItem = await getItemById(
+            itemId
+        );
+
+        if (
+            restoredItem &&
+            restoredItem.status === "open"
+        ) {
+            await findAndSaveMatches(
+                itemId,
+                restoredItem
+            );
+        }
+    } catch (error) {
+        console.error(
+            "Unable to refresh restored item matches:",
+            error
+        );
+    }
 }
 
 export async function updateItem(id, updateData) {
@@ -401,6 +544,22 @@ export async function updateItem(id, updateData) {
     const itemRef = doc(db, "items", id);
 
     await updateDoc(itemRef, updateData);
+
+    try {
+        const updatedItem = await getItemById(id);
+
+        if (updatedItem) {
+            await findAndSaveMatches(
+                id,
+                updatedItem
+            );
+        }
+    } catch (error) {
+        console.error(
+            "Unable to refresh item matches:",
+            error
+        );
+    }
 }
 
 export async function deleteItem(id) {
@@ -410,6 +569,9 @@ export async function deleteItem(id) {
 
     const itemRef = doc(db, "items", id);
 
+    // This must happen before deleting the item because the
+    // security rules use the item document to verify ownership.
+    await clearItemMatches(id);
     await deleteDoc(itemRef);
 }
 
@@ -967,7 +1129,16 @@ export async function markItemResolved(
         });
     });
 
-    await batch.commit();
+        await batch.commit();
+
+    try {
+        await clearItemMatches(itemId);
+    } catch (error) {
+        console.error(
+            "Unable to clear resolved item matches:",
+            error
+        );
+    }
 
     return pendingItemClaims.length;
 }
