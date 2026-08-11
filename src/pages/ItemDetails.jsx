@@ -1,4 +1,8 @@
-import { useEffect, useState } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   checkIsAdmin,
@@ -38,6 +42,7 @@ function ItemDetails() {
 
   const [possibleMatches, setPossibleMatches] = useState([]);
   const [isLoadingMatches, setIsLoadingMatches] = useState(true);
+  const matchSectionRef = useRef(null);
 
   useEffect(() => {
     async function loadItem() {
@@ -311,23 +316,65 @@ function ItemDetails() {
   const canInspectUnavailableItem =
     Boolean(isOwner || isAdmin);
 
+    useEffect(() => {
+      if (
+        !location.state?.scrollToMatches ||
+        isLoadingMatches ||
+        !isOwner ||
+        isUnavailable
+      ) {
+        return;
+      }
+
+      const scrollTimer = window.setTimeout(() => {
+        matchSectionRef.current?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+      }, 150);
+
+      return () => {
+        window.clearTimeout(scrollTimer);
+      };
+    }, [
+      location.state?.scrollToMatches,
+      isLoadingMatches,
+      isOwner,
+      isUnavailable,
+      possibleMatches.length,
+    ]);
+
   const cameFromAccount =
     location.state?.from === "account";
 
   const cameFromAdmin =
     location.state?.from === "admin";
 
-  const backPath = cameFromAccount
-    ? "/account"
-    : cameFromAdmin
-      ? "/admin"
-      : "/browse";
+    const cameFromMatch =
+      location.state?.from === "match" &&
+      location.state?.returnTo;
 
-  const backLabel = cameFromAccount
-    ? "Back to Your Account"
-    : cameFromAdmin
-      ? "Back to Moderation"
-      : "Back to Browse";
+  const backPath = cameFromMatch
+    ? location.state.returnTo
+    : cameFromAccount
+      ? "/account"
+      : cameFromAdmin
+        ? "/admin"
+        : "/browse";
+
+  const backLabel = cameFromMatch
+    ? "Back to Previous Report"
+    : cameFromAccount
+      ? "Back to Your Account"
+      : cameFromAdmin
+        ? "Back to Moderation"
+        : "Back to Browse";
+
+  const backState = cameFromMatch
+  ? {
+      scrollToMatches: true,
+    }
+  : undefined;
 
   if (isLoading || isAuthLoading) {
     return (
@@ -390,10 +437,28 @@ function ItemDetails() {
     <main className="mx-auto max-w-3xl py-10">
       <Link
         to={backPath}
+        state={backState}
         className="text-sm font-medium text-red-600 hover:text-red-700"
       >
         ← {backLabel}
       </Link>
+
+      {location.state?.newlyPosted && (
+        <div
+          role="status"
+          className="mt-5 rounded-2xl border border-green-200 bg-green-50 px-5 py-4 text-green-900"
+        >
+          <p className="font-semibold">
+            Item reported successfully!
+          </p>
+
+          <p className="mt-1 text-sm">
+            We checked your report against existing{" "}
+            {item.type === "lost" ? "found" : "lost"}{" "}
+            items. Your possible matches appear below.
+          </p>
+        </div>
+      )}
 
       <article className="mt-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
         <div className="flex items-start justify-between gap-6">
@@ -531,42 +596,68 @@ function ItemDetails() {
             )}
           </div>
         )}
-        {isOwner && !isLoadingMatches && possibleMatches.length > 0 && (
-          <div className="mt-6 rounded-2xl border border-[#A6192E]/20 bg-[#FAF7F2] p-5">
+        {isOwner && !isUnavailable && !isLoadingMatches && (
+          <section
+            ref={matchSectionRef}
+            id="possible-matches"
+            className="mt-6 scroll-mt-24 rounded-2xl border border-[#A6192E]/20 bg-[#FAF7F2] p-5"
+          >
             <h2 className="text-lg font-semibold text-slate-900">
               Possible Matches
             </h2>
+
             <p className="mt-1 text-sm text-slate-600">
-              These {item.type === "lost" ? "found" : "lost"} reports
-              share similar details with your post.
+              These {item.type === "lost" ? "found" : "lost"}{" "}
+              reports share similar details with your post.
             </p>
 
-            <div className="mt-4 space-y-3">
-              {possibleMatches.map((match) => (
-                <Link
-                  key={match.matchedItemId}
-                  to={`/items/${match.matchedItemId}`}
-                  className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3 transition hover:border-[#A6192E] hover:bg-red-50"
-                >
-                  <div>
-                    <p className="font-medium text-slate-900">
-                      {match.item?.title || "Untitled report"}
-                    </p>
-                    <p className="text-sm text-slate-600">
-                      {match.item?.category}
-                      {match.item?.building
-                        ? ` · ${match.item.building}`
-                        : ""}
-                    </p>
-                  </div>
+            {possibleMatches.length > 0 ? (
+              <div className="mt-4 space-y-3">
+                {possibleMatches.map((match) => (
+                  <Link
+                    key={match.matchedItemId}
+                    to={`/items/${match.matchedItemId}`}
+                    state={{
+                      from: "match",
+                      returnTo: `/items/${item.id}`,
+                    }}
+                    className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3 transition hover:border-[#A6192E] hover:bg-red-50"
+                  >
+                    <div>
+                      <p className="font-medium text-slate-900">
+                        {match.item?.title ||
+                          "Untitled report"}
+                      </p>
 
-                  <span className="ml-4 shrink-0 rounded-full bg-[#A6192E]/10 px-3 py-1 text-xs font-semibold text-[#A6192E]">
-                    {Math.round(match.score * 100)}% match
-                  </span>
-                </Link>
-              ))}
-            </div>
-          </div>
+                      <p className="text-sm text-slate-600">
+                        {match.item?.category}
+
+                        {match.item?.building
+                          ? ` · ${match.item.building}`
+                          : ""}
+                      </p>
+                    </div>
+
+                    <span className="ml-4 shrink-0 rounded-full bg-[#A6192E]/10 px-3 py-1 text-xs font-semibold text-[#A6192E]">
+                      {Math.round(match.score * 100)}% match
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <div className="mt-4 rounded-xl border border-dashed border-slate-300 bg-white px-5 py-6 text-center">
+                <p className="font-medium text-slate-900">
+                  No strong matches yet
+                </p>
+
+                <p className="mt-1 text-sm text-slate-600">
+                  We’ll continue checking as new{" "}
+                  {item.type === "lost" ? "found" : "lost"}{" "}
+                  reports are posted.
+                </p>
+              </div>
+            )}
+          </section>
         )}
 
         {isOwner && pendingClaimCount > 0 && (

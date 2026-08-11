@@ -3,6 +3,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { useNavigate } from "react-router-dom";
 import { auth } from "../firebase/config";
 import { createItem, getUserProfile } from "../firebase/firestore";
 import { ITEM_CATEGORIES } from "../constants/categories";
@@ -12,6 +13,7 @@ import {
 } from "../services/cloudinary";
 
 function ItemForm() {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -128,15 +130,13 @@ function removeSelectedImage() {
         imagePath = uploadedImage.imagePath;
       }
 
-      await createItem({
+      const newItemId = await createItem({
         ...formData,
         imageUrl,
         imagePath,
         ownerId: currentUser.uid,
         ownerFirstName,
       });
-
-      setMessage("Item reported successfully!");
 
       setFormData({
         title: "",
@@ -155,6 +155,14 @@ function removeSelectedImage() {
       if (imageInputRef.current) {
         imageInputRef.current.value = "";
       }
+      
+      navigate(`/items/${newItemId}`, {
+        state: {
+          newlyPosted: true,
+          scrollToMatches: true,
+        },
+      });
+
     } catch (error) {
       console.error("Item submission error:", error);
 
