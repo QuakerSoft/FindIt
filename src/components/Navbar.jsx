@@ -13,6 +13,12 @@ function Navbar() {
   const location = useLocation();
   const navigate = useNavigate();
   const [currentUser, setCurrentUser] = useState(null);
+  const [navbarSearch, setNavbarSearch] =
+    useState("");
+  const [
+    isMobileMenuOpen,
+    setIsMobileMenuOpen,
+  ] = useState(false);
   const [
     claimNotificationCount,
     setClaimNotificationCount,
@@ -141,6 +147,24 @@ useEffect(() => {
   return unsubscribe;
 }, [currentUser]);
 
+function handleNavbarSearch(event) {
+  event.preventDefault();
+
+  const trimmedSearch = navbarSearch.trim();
+
+  if (trimmedSearch) {
+    navigate(
+      `/browse?search=${encodeURIComponent(
+        trimmedSearch
+      )}`
+    );
+  } else {
+    navigate("/browse");
+  }
+
+  setNavbarSearch("");
+}
+
 async function handleLogout() {
     try {
       await signOut(auth);
@@ -152,14 +176,13 @@ async function handleLogout() {
   }
 
   const links = [
-    { to: '/', label: 'Home' },
-    { to: '/browse', label: 'Browse' },
-    { to: '/post', label: 'Post Item' },
-  ];
+  { to: "/browse", label: "Browse" },
+  { to: "/post", label: "Post Item" },
+];
 
   return (
-    <nav className="sticky top-0 z-50 bg-[#A6192E] text-white px-6 py-4 shadow-md">
-      <div className="max-w-5xl mx-auto flex items-center justify-between">
+    <nav className="sticky top-0 z-50 bg-[#A6192E] px-4 py-3 text-white shadow-md sm:px-6">
+      <div className="relative mx-auto flex max-w-7xl items-center justify-between gap-6">
         <Link to="/" className="flex items-center gap-1.5 text-xl font-bold">
           <span className="bg-white text-[#A6192E] text-xs font-extrabold px-1.5 py-0.5 rounded-sm">
             CSUN
@@ -167,7 +190,89 @@ async function handleLogout() {
           <span>FindIt</span>
         </Link>
 
-        <div className="flex items-center gap-1">
+        <form
+          onSubmit={handleNavbarSearch}
+          className="hidden"
+          role="search"
+        >
+          <label
+            htmlFor="navbar-search"
+            className="sr-only"
+          >
+            Search lost and found reports
+          </label>
+
+          <div className="relative">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              aria-hidden="true"
+              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+            >
+              <circle cx="11" cy="11" r="7" />
+              <path d="m20 20-3.5-3.5" />
+            </svg>
+
+            <input
+              id="navbar-search"
+              type="search"
+              value={navbarSearch}
+              onChange={(event) =>
+                setNavbarSearch(event.target.value)
+              }
+              placeholder="Search items, buildings, or descriptions"
+              className="w-full rounded-full border border-white/20 bg-white px-4 py-2 pl-10 text-sm text-[#1C1B19] outline-none placeholder:text-slate-400 focus:border-white focus:ring-4 focus:ring-white/20"
+            />
+          </div>
+        </form>
+
+        <button
+          type="button"
+          onClick={() =>
+            setIsMobileMenuOpen(
+              (currentValue) => !currentValue
+            )
+          }
+          aria-expanded={isMobileMenuOpen}
+          aria-controls="mobile-navigation"
+          aria-label={
+            isMobileMenuOpen
+              ? "Close navigation menu"
+              : "Open navigation menu"
+          }
+          className="flex h-10 w-10 items-center justify-center rounded-full border border-white/40 transition hover:bg-white/10 lg:hidden"
+        >
+          {isMobileMenuOpen ? (
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              className="h-5 w-5"
+              aria-hidden="true"
+            >
+              <path d="M6 6 18 18" />
+              <path d="M18 6 6 18" />
+            </svg>
+          ) : (
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              className="h-5 w-5"
+              aria-hidden="true"
+            >
+              <path d="M4 7h16" />
+              <path d="M4 12h16" />
+              <path d="M4 17h16" />
+            </svg>
+          )}
+        </button>
+
+        <div className="hidden items-center gap-1 lg:flex">
           {links.map((link) => {
             const isActive = location.pathname === link.to;
             return (
@@ -271,6 +376,109 @@ async function handleLogout() {
         )}
         </div>
       </div>
+            {isMobileMenuOpen && (
+        <div
+          id="mobile-navigation"
+          className="mx-auto mt-3 max-w-7xl border-t border-white/20 pt-3 lg:hidden"
+        >
+          <div className="flex flex-col gap-1">
+            <Link
+              to="/"
+              onClick={() =>
+                setIsMobileMenuOpen(false)
+              }
+              className="rounded-xl px-4 py-3 text-sm font-medium transition hover:bg-white/10"
+            >
+              Home
+            </Link>
+
+            {links.map((link) => (
+              <Link
+                key={link.to}
+                to={link.to}
+                onClick={() =>
+                  setIsMobileMenuOpen(false)
+                }
+                className={`rounded-xl px-4 py-3 text-sm font-medium transition ${
+                  location.pathname === link.to
+                    ? "bg-white text-[#A6192E]"
+                    : "hover:bg-white/10"
+                }`}
+              >
+                {link.label}
+              </Link>
+            ))}
+
+            {currentUser ? (
+              <>
+                {isAdmin && (
+                  <Link
+                    to="/admin"
+                    onClick={() =>
+                      setIsMobileMenuOpen(false)
+                    }
+                    className={`rounded-xl px-4 py-3 text-sm font-medium transition ${
+                      location.pathname === "/admin"
+                        ? "bg-white text-[#A6192E]"
+                        : "hover:bg-white/10"
+                    }`}
+                  >
+                    Admin
+                  </Link>
+                )}
+
+                <Link
+                  to={
+                    moderationNotificationCount > 0 ||
+                    matchNotificationCount > 0
+                      ? "/account#my-reports"
+                      : "/account"
+                  }
+                  onClick={() =>
+                    setIsMobileMenuOpen(false)
+                  }
+                  className={`flex items-center justify-between rounded-xl px-4 py-3 text-sm font-medium transition ${
+                    location.pathname === "/account"
+                      ? "bg-white text-[#A6192E]"
+                      : "hover:bg-white/10"
+                  }`}
+                >
+                  <span>Account</span>
+
+                  {notificationCount > 0 && (
+                    <span className="rounded-full bg-amber-300 px-2 py-0.5 text-xs font-bold text-slate-900">
+                      {notificationCount > 99
+                        ? "99+"
+                        : notificationCount}
+                    </span>
+                  )}
+                </Link>
+
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setIsMobileMenuOpen(false);
+                    await handleLogout();
+                  }}
+                  className="rounded-xl px-4 py-3 text-left text-sm font-medium transition hover:bg-white/10"
+                >
+                  Log Out
+                </button>
+              </>
+            ) : (
+              <Link
+                to="/login"
+                onClick={() =>
+                  setIsMobileMenuOpen(false)
+                }
+                className="rounded-xl px-4 py-3 text-sm font-medium transition hover:bg-white/10"
+              >
+                Log In
+              </Link>
+            )}
+          </div>
+        </div>
+      )}
     </nav>
   );
 }

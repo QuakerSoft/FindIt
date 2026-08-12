@@ -14,7 +14,11 @@ import {
     markReceivedClaimsViewed,
     markSubmittedClaimResponsesViewed,
     markModerationNoticesViewed,
+    getBookmarkedItems,
+    removeItemBookmark,
+    saveItemBookmark,
 } from "../firebase/firestore";
+import BookmarkButton from "../components/BookmarkButton";
 
 function ReportImage({ item }) {
     const [imageStatus, setImageStatus] = useState("loading");
@@ -79,6 +83,15 @@ function SafeMeetupNotice() {
 function Account() {
     const [profile, setProfile] = useState(null);
     const [items, setItems] = useState([]);
+
+    const [savedItems, setSavedItems] =
+        useState([]);
+
+        const [
+        workingSavedItemId,
+        setWorkingSavedItemId,
+        ] = useState("");
+
     const [unreadMatchItemIds, setUnreadMatchItemIds] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [loadError, setLoadError] = useState("");
@@ -129,6 +142,7 @@ function Account() {
                     receivedClaimsData,
                     submittedClaimsData,
                     unreadStrongMatchItemIds,
+                    bookmarkedItems,
                     ] = await Promise.all([
                     getUserProfile(currentUser.uid),
                     getItemsByOwner(currentUser.uid),
@@ -144,6 +158,7 @@ function Account() {
 
                         return [];
                     }),
+                    getBookmarkedItems(currentUser.uid),
                 ]);
 
                 const sortNewestFirst = (claims) =>
@@ -161,6 +176,7 @@ function Account() {
 
                 setProfile(profileData);
                 setItems(userItems);
+                setSavedItems(bookmarkedItems);
                 setUnreadMatchItemIds(
                     unreadStrongMatchItemIds
                     );
@@ -650,6 +666,57 @@ function Account() {
             setRespondingClaimId("");
         }
     }
+
+    async function toggleSavedItem(item) {
+        const currentUser = auth.currentUser;
+
+        if (!currentUser) {
+            return;
+        }
+
+        const isCurrentlySaved = savedItems.some(
+            (savedItem) => savedItem.id === item.id
+        );
+
+        try {
+            setWorkingSavedItemId(item.id);
+
+            if (isCurrentlySaved) {
+            await removeItemBookmark(
+                currentUser.uid,
+                item.id
+            );
+
+            setSavedItems((currentItems) =>
+                currentItems.filter(
+                (savedItem) =>
+                    savedItem.id !== item.id
+                )
+            );
+            } else {
+            await saveItemBookmark(
+                currentUser.uid,
+                item.id
+            );
+
+            setSavedItems((currentItems) => [
+                ...currentItems,
+                item,
+            ]);
+            }
+        } catch (error) {
+            console.error(
+            "Unable to update saved item:",
+            error
+            );
+
+            setMessage(
+            "Unable to update your saved items."
+            );
+        } finally {
+            setWorkingSavedItemId("");
+        }
+        }
 
     if (isLoading) {
         return (
@@ -1394,6 +1461,102 @@ function Account() {
                     </section>
                 </div>
             )}
+
+                        <section
+                id="saved-items"
+                className="mt-10 scroll-mt-24 border-t border-[#E5E0D8] pt-8"
+            >
+                <div>
+                    <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#A6192E]">
+                        Bookmarks
+                    </p>
+
+                    <h2 className="mt-1 text-2xl font-bold text-[#1C1B19]">
+                        Saved Items
+                    </h2>
+
+                    <p className="mt-2 text-sm text-[#6B6560]">
+                        Keep track of reports that may be relevant to you.
+                    </p>
+                </div>
+
+                {savedItems.length === 0 ? (
+                    <div className="mt-5 rounded-2xl border border-dashed border-[#E5E0D8] bg-white px-6 py-10 text-center">
+                        <p className="font-semibold text-[#1C1B19]">
+                            No saved items yet
+                        </p>
+
+                        <p className="mt-1 text-sm text-[#6B6560]">
+                            Use the bookmark icon on Browse or Item Details to save a report.
+                        </p>
+
+                        <Link
+                            to="/browse"
+                            className="mt-4 inline-block text-sm font-semibold text-[#A6192E] hover:underline"
+                        >
+                            Browse reports →
+                        </Link>
+                    </div>
+                ) : (
+                    <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                        {savedItems.map((savedItem) => (
+                            <article
+                                key={savedItem.id}
+                                className="rounded-2xl border border-[#E5E0D8] bg-white p-4 shadow-sm"
+                            >
+                                <div className="flex items-start justify-between gap-4">
+                                    <div className="min-w-0">
+                                        <div className="flex flex-wrap gap-2">
+                                            <span className="rounded-full bg-[#A6192E]/10 px-2.5 py-1 text-xs font-semibold capitalize text-[#A6192E]">
+                                                {savedItem.type}
+                                            </span>
+
+                                            <span className="rounded-full bg-[#FAF7F2] px-2.5 py-1 text-xs font-semibold capitalize text-[#6B6560]">
+                                                {savedItem.status}
+                                            </span>
+                                        </div>
+
+                                        <h3 className="mt-3 truncate text-lg font-bold text-[#1C1B19]">
+                                            {savedItem.title}
+                                        </h3>
+                                    </div>
+
+                                    <BookmarkButton
+                                        item={savedItem}
+                                        isSaved
+                                        isWorking={
+                                            workingSavedItemId ===
+                                            savedItem.id
+                                        }
+                                        onToggle={toggleSavedItem}
+                                    />
+                                </div>
+
+                                <p className="mt-2 line-clamp-2 text-sm text-[#6B6560]">
+                                    {savedItem.description}
+                                </p>
+
+                                <p className="mt-3 text-xs text-[#6B6560]">
+                                    {savedItem.category} ·{" "}
+                                    {savedItem.building}
+                                </p>
+
+                                <Link
+                                    to={`/items/${savedItem.id}`}
+                                    state={{
+                                        from: "account",
+                                        returnTo:
+                                            "/account#saved-items",
+                                    }}
+                                    className="mt-4 inline-block rounded-xl bg-[#A6192E] px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-800"
+                                >
+                                    View Saved Item
+                                </Link>
+                            </article>
+                        ))}
+                    </div>
+                )}
+            </section>
 
             <h2
                 id="my-reports"

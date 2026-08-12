@@ -135,7 +135,7 @@ function ReportActionsMenu({
           onClick={() =>
             setIsMenuOpen((currentValue) => !currentValue)
           }
-          className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-2xl font-bold leading-none text-slate-700 shadow-sm transition hover:bg-slate-100"
+          className="flex h-10 w-10 items-center justify-center rounded-full border border-[#E5E0D8] bg-white text-2xl font-bold leading-none text-[#494541] shadow-sm transition hover:border-[#A6192E]/30 hover:bg-[#FAF7F2] hover:text-[#A6192E]"
         >
           <span aria-hidden="true">⋮</span>
         </button>

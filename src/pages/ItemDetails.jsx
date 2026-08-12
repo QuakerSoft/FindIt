@@ -12,11 +12,15 @@ import {
   getItemMatches,
   getUserProfile,
   markItemMatchesViewed,
+  getBookmarkedItemIds,
+  removeItemBookmark,
+  saveItemBookmark,
 } from "../firebase/firestore";
 import ReportPost from "../components/ReportPost";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "../firebase/config";
 import ReportActionsMenu from "../components/ReportActionsMenu";
+import BookmarkButton from "../components/BookmarkButton";
 
 function ItemDetails() {
   const { itemId } = useParams();
@@ -28,6 +32,47 @@ function ItemDetails() {
   const [errorMessage, setErrorMessage] = useState("");
   const [imageError, setImageError] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
+
+  const [isBookmarked, setIsBookmarked] =
+    useState(false);
+
+  const [
+    isUpdatingBookmark,
+    setIsUpdatingBookmark,
+  ] = useState(false);
+
+  useEffect(() => {
+  async function loadBookmarkStatus() {
+    if (
+      !currentUser ||
+      !item ||
+      currentUser.uid === item.ownerId
+    ) {
+      setIsBookmarked(false);
+      return;
+    }
+
+    try {
+      const bookmarkedIds =
+        await getBookmarkedItemIds(
+          currentUser.uid
+        );
+
+      setIsBookmarked(
+        bookmarkedIds.includes(item.id)
+      );
+    } catch (error) {
+      console.error(
+        "Unable to load bookmark status:",
+        error
+      );
+
+      setIsBookmarked(false);
+    }
+  }
+
+  loadBookmarkStatus();
+}, [currentUser, item]);
 
   const [isAdmin, setIsAdmin] = useState(false);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
@@ -184,6 +229,44 @@ function ItemDetails() {
 
     loadPendingClaims();
   }, [currentUser, item]);
+
+  async function toggleItemBookmark() {
+  if (!currentUser) {
+    navigate("/login");
+    return;
+  }
+
+  if (!item || currentUser.uid === item.ownerId) {
+    return;
+  }
+
+  try {
+    setIsUpdatingBookmark(true);
+
+    if (isBookmarked) {
+      await removeItemBookmark(
+        currentUser.uid,
+        item.id
+      );
+
+      setIsBookmarked(false);
+    } else {
+      await saveItemBookmark(
+        currentUser.uid,
+        item.id
+      );
+
+      setIsBookmarked(true);
+    }
+  } catch (error) {
+    console.error(
+      "Unable to update saved item:",
+      error
+    );
+  } finally {
+    setIsUpdatingBookmark(false);
+  }
+}
 
   function requestClaimSubmission(event) {
     event.preventDefault();
@@ -448,7 +531,7 @@ function ItemDetails() {
   }
 
   return (
-    <main className="mx-auto max-w-3xl py-10">
+    <main className="mx-auto max-w-5xl py-6 sm:py-10">
       <Link
         to={backPath}
         state={backState}
@@ -474,26 +557,55 @@ function ItemDetails() {
         </div>
       )}
 
-      <article className="mt-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-        <div className="flex items-start justify-between gap-6">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-wide text-red-600">
-              {item.type} item
-            </p>
+            <article className="mt-6 rounded-3xl border border-[#E5E0D8] bg-white p-5 shadow-sm sm:p-8">
+        <header className="flex items-start justify-between gap-5 border-b border-[#E5E0D8] pb-6">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <span
+                className={`rounded-full border px-3 py-1 text-xs font-bold uppercase tracking-wide ${
+                  item.type === "found"
+                    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                    : "border-[#A6192E]/20 bg-[#A6192E]/10 text-[#A6192E]"
+                }`}
+              >
+                {item.type} item
+              </span>
 
-            <h1 className="mt-2 text-3xl font-bold text-slate-900">
+              <span
+                className={`rounded-full border px-3 py-1 text-xs font-semibold capitalize ${
+                  item.status === "resolved"
+                    ? "border-slate-200 bg-slate-100 text-slate-600"
+                    : "border-amber-200 bg-amber-50 text-amber-700"
+                }`}
+              >
+                {item.status}
+              </span>
+            </div>
+
+            <h1 className="mt-4 text-3xl font-bold tracking-tight text-[#1C1B19] sm:text-4xl">
               {item.title}
             </h1>
 
-            <p className="mt-2 text-sm text-slate-500">
+            <p className="mt-2 text-sm text-[#6B6560]">
               Posted by{" "}
-              <span className="font-medium text-slate-700">
-                {item.ownerFirstName || "a CSUN community member"}
+              <span className="font-semibold text-[#1C1B19]">
+                {item.ownerFirstName ||
+                  "a CSUN community member"}
               </span>
             </p>
           </div>
 
-          <div className="shrink-0">
+          <div className="flex shrink-0 items-center gap-2">
+            {!isOwner &&
+              currentUser &&
+              !isUnavailable && (
+                <BookmarkButton
+                  item={item}
+                  isSaved={isBookmarked}
+                  isWorking={isUpdatingBookmark}
+                  onToggle={toggleItemBookmark}
+                />
+              )}
             {isOwner && !isUnavailable ? (
               <ReportActionsMenu
                 item={item}
@@ -507,123 +619,210 @@ function ItemDetails() {
                   navigate("/browse");
                 }}
               />
-            ) : !isOwner &&
-              !isUnavailable ? (
+            ) : !isOwner && !isUnavailable ? (
               <ReportPost item={item} />
             ) : null}
           </div>
-        </div>
+        </header>
 
         {isUnderReview && (
-          <div className="mt-5 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3">
+          <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4">
             <p className="font-semibold text-amber-900">
               This report is under review
             </p>
 
-            <p className="mt-1 text-sm text-amber-800">
-              It is temporarily hidden from the public while an administrator reviews it.
+            <p className="mt-1 text-sm leading-5 text-amber-800">
+              It is temporarily hidden from the public
+              while an administrator reviews it.
             </p>
           </div>
         )}
 
         {isHidden && (
-          <div className="mt-5 rounded-xl border border-red-300 bg-red-50 px-4 py-3">
+          <div className="mt-6 rounded-2xl border border-red-200 bg-red-50 px-5 py-4">
             <p className="font-semibold text-red-900">
               This report was removed
             </p>
 
-            <p className="mt-1 text-sm text-red-800">
-              An administrator removed this report because it violated the site's posting guidelines.
+            <p className="mt-1 text-sm leading-5 text-red-800">
+              An administrator removed this report because
+              it violated the site’s posting guidelines.
             </p>
           </div>
         )}
 
-        {item.status === "resolved" && canInspectUnavailableItem && (
-          <div className="mt-5 rounded-xl border border-slate-300 bg-slate-100 px-4 py-3">
-            <p className="font-semibold text-slate-900">
-              This report is resolved
-            </p>
+        {item.status === "resolved" &&
+          canInspectUnavailableItem && (
+            <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-100 px-5 py-4">
+              <p className="font-semibold text-slate-900">
+                This report is resolved
+              </p>
 
-            <p className="mt-1 text-sm text-slate-700">
-              It is no longer visible in Browse or accepting requests.
-            </p>
+              <p className="mt-1 text-sm leading-5 text-slate-700">
+                It is no longer visible in Browse or
+                accepting requests.
+              </p>
+            </div>
+          )}
+
+        <div className="mt-7 grid items-start gap-8 lg:grid-cols-[minmax(0,1.05fr)_minmax(300px,0.95fr)]">
+          <div>
+            <section>
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#A6192E]">
+                Item description
+              </p>
+
+              <p className="mt-3 whitespace-pre-wrap text-base leading-7 text-[#494541]">
+                {item.description}
+              </p>
+            </section>
+
+            <dl className="mt-7 grid gap-3 sm:grid-cols-2">
+              <div className="rounded-2xl bg-[#FAF7F2] px-4 py-3">
+                <dt className="text-xs font-semibold uppercase tracking-wide text-[#6B6560]">
+                  Category
+                </dt>
+
+                <dd className="mt-1 font-semibold text-[#1C1B19]">
+                  {item.category}
+                </dd>
+              </div>
+
+              <div className="rounded-2xl bg-[#FAF7F2] px-4 py-3">
+                <dt className="text-xs font-semibold uppercase tracking-wide text-[#6B6560]">
+                  Campus building
+                </dt>
+
+                <dd className="mt-1 font-semibold text-[#1C1B19]">
+                  {item.building}
+                </dd>
+              </div>
+
+              <div className="rounded-2xl bg-[#FAF7F2] px-4 py-3">
+                <dt className="text-xs font-semibold uppercase tracking-wide text-[#6B6560]">
+                  Specific location
+                </dt>
+
+                <dd className="mt-1 font-semibold text-[#1C1B19]">
+                  {item.location}
+                </dd>
+              </div>
+
+              <div className="rounded-2xl bg-[#FAF7F2] px-4 py-3">
+                <dt className="text-xs font-semibold uppercase tracking-wide text-[#6B6560]">
+                  Date {item.type === "lost" ? "lost" : "found"}
+                </dt>
+
+                <dd className="mt-1 font-semibold text-[#1C1B19]">
+                  {item.dateReported ||
+                    "Date unavailable"}
+                </dd>
+              </div>
+
+              <div className="rounded-2xl bg-[#FAF7F2] px-4 py-3 sm:col-span-2">
+                <dt className="text-xs font-semibold uppercase tracking-wide text-[#6B6560]">
+                  Report submitted
+                </dt>
+
+                <dd className="mt-1 font-semibold text-[#1C1B19]">
+                  {item.createdAt?.toDate
+                    ? item.createdAt
+                        .toDate()
+                        .toLocaleDateString()
+                    : "Date unavailable"}
+                </dd>
+              </div>
+            </dl>
           </div>
-        )}
 
-        <p className="mt-4 text-slate-600">
-          {item.description}
-        </p>
+          <section>
+            <p className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-[#A6192E]">
+              Item photo
+            </p>
 
-        <div className="mt-6 grid gap-4 sm:grid-cols-2">
-          <p>
-            <span className="font-semibold">Category:</span>{" "}
-            {item.category}
-          </p>
+            <div className="flex min-h-72 items-center justify-center overflow-hidden rounded-2xl border border-[#E5E0D8] bg-[#FAF7F2] p-4">
+              {item.imageUrl && !imageError ? (
+                <img
+                  src={item.imageUrl}
+                  alt={item.title}
+                  referrerPolicy="no-referrer"
+                  className="max-h-[28rem] w-full object-contain"
+                  onError={() =>
+                    setImageError(true)
+                  }
+                  onLoad={() =>
+                    setImageError(false)
+                  }
+                />
+              ) : (
+                <div className="flex flex-col items-center px-6 py-12 text-center text-[#6B6560]">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    className="h-12 w-12 text-[#6B6560]/60"
+                    aria-hidden="true"
+                  >
+                    <rect
+                      x="3"
+                      y="4"
+                      width="18"
+                      height="16"
+                      rx="2"
+                    />
+                    <circle
+                      cx="8.5"
+                      cy="9"
+                      r="1.5"
+                    />
+                    <path d="m4 17 5-5 4 4 2-2 5 5" />
+                  </svg>
 
-          <p>
-            <span className="font-semibold">Status:</span>{" "}
-            {item.status}
-          </p>
-
-          <p>
-            <span className="font-semibold">Building:</span>{" "}
-            {item.building}
-          </p>
-
-          <p>
-            <span className="font-semibold">Location:</span>{" "}
-            {item.location}
-          </p>
-
-          <p>
-            <span className="font-semibold">
-              Date lost or found:
-            </span>{" "}
-            {item.dateReported || "Date unavailable"}
-          </p>
-
-          <p>
-            <span className="font-semibold">Reported:</span>{" "}
-            {item.createdAt?.toDate
-              ? item.createdAt.toDate().toLocaleDateString()
-              : "Date unavailable"}
-          </p>
+                  <p className="mt-3 text-sm font-medium">
+                    {imageError
+                      ? "This image could not be loaded"
+                      : "No image was provided"}
+                  </p>
+                </div>
+              )}
+            </div>
+          </section>
         </div>
 
-        {item.imageUrl && (
-          <div className="mt-6">
-            {imageError ? (
-              <div className="flex h-56 items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-6 text-center">
-                <p className="text-sm text-slate-600">
-                  This item’s image could not be loaded.
-                </p>
-              </div>
-            ) : (
-              <img
-                src={item.imageUrl}
-                alt={item.title}
-                referrerPolicy="no-referrer"
-                className="max-h-96 w-full rounded-2xl border border-slate-200 bg-slate-50 object-contain p-2"
-                onError={() => setImageError(true)}
-                onLoad={() => setImageError(false)}
-              />
-            )}
-          </div>
-        )}
         {isOwner && !isUnavailable && !isLoadingMatches && (
           <section
             ref={matchSectionRef}
             id="possible-matches"
             className="mt-6 scroll-mt-24 rounded-2xl border border-[#A6192E]/20 bg-[#FAF7F2] p-5"
           >
-            <h2 className="text-lg font-semibold text-slate-900">
-              Possible Matches
-            </h2>
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#A6192E]">
+                  Automatic matching
+                </p>
 
-            <p className="mt-1 text-sm text-slate-600">
-              These {item.type === "lost" ? "found" : "lost"}{" "}
-              reports share similar details with your post.
-            </p>
+                <h2 className="mt-1 text-xl font-bold text-[#1C1B19]">
+                  Possible Matches
+                </h2>
+
+                <p className="mt-1 text-sm leading-5 text-[#6B6560]">
+                  These{" "}
+                  {item.type === "lost"
+                    ? "found"
+                    : "lost"}{" "}
+                  reports share similar details with your
+                  post.
+                </p>
+              </div>
+
+              <span className="rounded-full border border-[#A6192E]/20 bg-white px-3 py-1 text-xs font-semibold text-[#A6192E]">
+                {possibleMatches.length}{" "}
+                {possibleMatches.length === 1
+                  ? "match"
+                  : "matches"}
+              </span>
+            </div>
 
             {possibleMatches.length > 0 ? (
               <div className="mt-4 space-y-3">
@@ -640,7 +839,7 @@ function ItemDetails() {
                       newlyPosted: false,
                     },
                   }}
-                    className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3 transition hover:border-[#A6192E] hover:bg-red-50"
+                    className="flex flex-col gap-3 rounded-xl border border-[#E5E0D8] bg-white px-4 py-4 shadow-sm transition hover:-translate-y-0.5 hover:border-[#A6192E]/40 hover:shadow-md sm:flex-row sm:items-center sm:justify-between"
                   >
                     <div>
                       <p className="font-medium text-slate-900">
@@ -657,7 +856,7 @@ function ItemDetails() {
                       </p>
                     </div>
 
-                    <span className="ml-4 shrink-0 rounded-full bg-[#A6192E]/10 px-3 py-1 text-xs font-semibold text-[#A6192E]">
+                    <span className="shrink-0 self-start rounded-full bg-[#A6192E]/10 px-3 py-1 text-xs font-bold text-[#A6192E] sm:self-auto">
                       {Math.round(match.score * 100)}% match
                     </span>
                   </Link>
