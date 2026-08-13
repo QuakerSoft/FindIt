@@ -475,6 +475,101 @@ export async function getItemById(id) {
     };
 }
 
+export async function saveItemBookmark(
+  userId,
+  itemId
+) {
+  if (!userId || !itemId) {
+    throw new Error(
+      "A user ID and item ID are required."
+    );
+  }
+
+  const bookmarkRef = doc(
+    db,
+    "users",
+    userId,
+    "bookmarks",
+    itemId
+  );
+
+  await setDoc(bookmarkRef, {
+    itemId,
+    createdAt: serverTimestamp(),
+  });
+}
+
+export async function removeItemBookmark(
+  userId,
+  itemId
+) {
+  if (!userId || !itemId) {
+    throw new Error(
+      "A user ID and item ID are required."
+    );
+  }
+
+  const bookmarkRef = doc(
+    db,
+    "users",
+    userId,
+    "bookmarks",
+    itemId
+  );
+
+  await deleteDoc(bookmarkRef);
+}
+
+export async function getBookmarkedItemIds(
+  userId
+) {
+  if (!userId) {
+    throw new Error("A user ID is required.");
+  }
+
+  const bookmarksRef = collection(
+    db,
+    "users",
+    userId,
+    "bookmarks"
+  );
+
+  const bookmarkSnapshot =
+    await getDocs(bookmarksRef);
+
+  return bookmarkSnapshot.docs.map(
+    (bookmarkDoc) =>
+      bookmarkDoc.data().itemId ||
+      bookmarkDoc.id
+  );
+}
+
+export async function getBookmarkedItems(
+  userId
+) {
+  const bookmarkedItemIds =
+    await getBookmarkedItemIds(userId);
+
+  const bookmarkedItems = await Promise.all(
+    bookmarkedItemIds.map(async (itemId) => {
+      try {
+        return await getItemById(itemId);
+      } catch {
+        // Hidden, resolved, deleted, or otherwise
+        // inaccessible reports should not block Account.
+        return null;
+      }
+    })
+  );
+
+  return bookmarkedItems.filter(
+    (item) =>
+        item &&
+        item.status === "open" &&
+        item.moderationStatus === "visible"
+    );
+}
+
 export async function checkIsAdmin(userId) {
     if (!userId) {
         return false;

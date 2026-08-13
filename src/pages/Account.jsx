@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { auth } from "../firebase/config";
 import {
     deleteItem,
@@ -14,42 +14,125 @@ import {
     markReceivedClaimsViewed,
     markSubmittedClaimResponsesViewed,
     markModerationNoticesViewed,
+    getBookmarkedItems,
+    removeItemBookmark,
+    saveItemBookmark,
 } from "../firebase/firestore";
+import BookmarkButton from "../components/BookmarkButton";
 
 function ReportImage({ item }) {
-    const [imageStatus, setImageStatus] = useState("loading");
+    const [imageStatus, setImageStatus] =
+        useState(item.imageUrl ? "loading" : "missing");
 
-    if (!item.imageUrl) {
-        return null;
-    }
-
-    if (imageStatus === "error") {
+    if (
+        imageStatus === "missing" ||
+        imageStatus === "error"
+    ) {
         return (
-            <div className="mb-4 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-3">
-                <p className="text-sm text-slate-600">
-                    This report’s image could not be loaded.
-                </p>
+            <div className="mb-4 flex h-48 items-center justify-center rounded-xl bg-[#FAF7F2] px-4 text-center">
+                <div>
+                    <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                        className="mx-auto h-9 w-9 text-[#A6192E]/45"
+                        aria-hidden="true"
+                    >
+                        <rect
+                            x="3"
+                            y="4"
+                            width="18"
+                            height="16"
+                            rx="2"
+                        />
+                        <circle cx="8.5" cy="9" r="1.5" />
+                        <path d="m4 17 5-5 4 4 2-2 5 4" />
+                    </svg>
+
+                    <p className="mt-2 text-sm font-medium text-[#6B6560]">
+                        {imageStatus === "error"
+                            ? "Image unavailable"
+                            : "No image provided"}
+                    </p>
+                </div>
             </div>
         );
     }
 
     return (
-        <div className="mb-4">
+        <div className="relative mb-4 h-48 overflow-hidden rounded-xl bg-[#FAF7F2]">
             {imageStatus === "loading" && (
-                <p className="mb-2 text-sm text-slate-500">
-                    Loading image...
-                </p>
+                <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="h-7 w-7 animate-spin rounded-full border-2 border-[#E5E0D8] border-t-[#A6192E]" />
+                </div>
             )}
 
             <img
                 src={item.imageUrl}
                 alt={item.title}
                 referrerPolicy="no-referrer"
-                className={`max-h-64 w-full rounded-xl border border-slate-200 bg-slate-50 object-contain p-2 ${
-                    imageStatus === "loading" ? "opacity-0" : "opacity-100"
+                className={`h-full w-full object-contain p-2 transition-opacity ${
+                    imageStatus === "loading"
+                        ? "opacity-0"
+                        : "opacity-100"
                 }`}
                 onLoad={() => setImageStatus("loaded")}
                 onError={() => setImageStatus("error")}
+            />
+        </div>
+    );
+}
+
+function SavedItemImage({ item }) {
+    const [imageFailed, setImageFailed] =
+        useState(false);
+
+    if (!item.imageUrl || imageFailed) {
+        return (
+            <div className="flex h-44 items-center justify-center rounded-xl bg-[#FAF7F2] px-4 text-center">
+                <div>
+                    <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                        className="mx-auto h-8 w-8 text-[#B0A8A0]"
+                        aria-hidden="true"
+                    >
+                        <rect
+                            x="3"
+                            y="4"
+                            width="18"
+                            height="16"
+                            rx="2"
+                        />
+                        <circle
+                            cx="8.5"
+                            cy="9"
+                            r="1.5"
+                        />
+                        <path d="m4 17 5-5 4 4 2-2 5 5" />
+                    </svg>
+
+                    <p className="mt-2 text-xs text-[#8A837C]">
+                        No image available
+                    </p>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="h-44 overflow-hidden rounded-xl bg-[#FAF7F2]">
+            <img
+                src={item.imageUrl}
+                alt={item.title}
+                referrerPolicy="no-referrer"
+                className="h-full w-full object-contain p-2"
+                onError={() =>
+                    setImageFailed(true)
+                }
             />
         </div>
     );
@@ -76,9 +159,92 @@ function SafeMeetupNotice() {
     );
 }
 
+function getReportFilterFromUrl() {
+    const searchParameters =
+        new URLSearchParams(
+            window.location.search
+        );
+
+    const requestedFilter =
+        searchParameters.get("reportFilter");
+
+    const validFilters = [
+        "all",
+        "active",
+        "resolved",
+        "moderation",
+    ];
+
+    return validFilters.includes(requestedFilter)
+        ? requestedFilter
+        : "all";
+}
+
+function getRequestPanelFromHash() {
+    const targetId =
+        window.location.hash.replace("#", "");
+
+    if (
+        targetId.startsWith("submitted-request-") ||
+        targetId === "submitted-requests"
+    ) {
+        return "submitted";
+    }
+
+    return "received";
+}
+
+function getAccountTabFromHash() {
+    const targetId =
+        window.location.hash.replace("#", "");
+
+    if (
+        targetId === "received-requests" ||
+        targetId === "submitted-requests" ||
+        targetId.startsWith("received-request-") ||
+        targetId.startsWith("submitted-request-")
+    ) {
+        return "requests";
+    }
+
+    if (
+        targetId === "my-reports" ||
+        targetId.startsWith("report-")
+    ) {
+        return "reports";
+    }
+
+    if (targetId === "saved-items") {
+        return "saved";
+    }
+
+    return "overview";
+}
+
 function Account() {
+    const navigate = useNavigate();
     const [profile, setProfile] = useState(null);
     const [items, setItems] = useState([]);
+
+    const [activeTab, setActiveTab] = useState(
+        getAccountTabFromHash
+    );
+
+    const [requestPanel, setRequestPanel] = useState(
+        getRequestPanelFromHash
+    );
+
+    const [reportFilter, setReportFilter] =
+        useState(getReportFilterFromUrl);
+
+    const [savedItems, setSavedItems] =
+        useState([]);
+
+        const [
+        workingSavedItemId,
+        setWorkingSavedItemId,
+        ] = useState("");
+
     const [unreadMatchItemIds, setUnreadMatchItemIds] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [loadError, setLoadError] = useState("");
@@ -129,6 +295,7 @@ function Account() {
                     receivedClaimsData,
                     submittedClaimsData,
                     unreadStrongMatchItemIds,
+                    bookmarkedItems,
                     ] = await Promise.all([
                     getUserProfile(currentUser.uid),
                     getItemsByOwner(currentUser.uid),
@@ -144,6 +311,7 @@ function Account() {
 
                         return [];
                     }),
+                    getBookmarkedItems(currentUser.uid),
                 ]);
 
                 const sortNewestFirst = (claims) =>
@@ -161,6 +329,7 @@ function Account() {
 
                 setProfile(profileData);
                 setItems(userItems);
+                setSavedItems(bookmarkedItems);
                 setUnreadMatchItemIds(
                     unreadStrongMatchItemIds
                     );
@@ -212,32 +381,137 @@ function Account() {
         loadAccount();
     }, []);
         useEffect(() => {
-            if (isLoading) {
-                return;
-            }
+            function syncTabWithHash() {
+            setActiveTab(getAccountTabFromHash());
+            setRequestPanel(getRequestPanelFromHash());
+        }
 
-            const targetId =
-                window.location.hash.replace("#", "");
+    syncTabWithHash();
 
-            if (!targetId) {
-                return;
-            }
+    window.addEventListener(
+        "hashchange",
+        syncTabWithHash
+    );
 
-            const animationFrameId =
-                window.requestAnimationFrame(() => {
-                    document
-                        .getElementById(targetId)
-                        ?.scrollIntoView({
-                            behavior: "smooth",
-                            block: "start",
-                        });
-                });
+    return () => {
+        window.removeEventListener(
+            "hashchange",
+            syncTabWithHash
+        );
+    };
+}, []);
 
-            return () =>
-                window.cancelAnimationFrame(
-                    animationFrameId
-                );
-        }, [isLoading]);
+useEffect(() => {
+    if (isLoading) {
+        return;
+    }
+
+    const targetId =
+        window.location.hash.replace("#", "");
+
+    if (!targetId) {
+        return;
+    }
+
+    const scrollTimer = window.setTimeout(() => {
+        document
+            .getElementById(targetId)
+            ?.scrollIntoView({
+                behavior: "smooth",
+                block: "start",
+            });
+    }, 100);
+
+    return () =>
+        window.clearTimeout(scrollTimer);
+}, [isLoading, activeTab, requestPanel]);
+
+function changeAccountTab(tabName) {
+    const tabHashes = {
+        overview: "overview",
+        reports: "my-reports",
+        requests: "received-requests",
+        saved: "saved-items",
+    };
+
+    setActiveTab(tabName);
+
+    const reportFilterQuery =
+        tabName === "reports" &&
+        reportFilter !== "all"
+            ? `?reportFilter=${reportFilter}`
+            : "";
+
+    window.history.replaceState(
+        null,
+        "",
+        `/account${reportFilterQuery}#${tabHashes[tabName]}`
+    );
+
+    window.requestAnimationFrame(() => {
+        document
+            .getElementById(tabHashes[tabName])
+            ?.scrollIntoView({
+                behavior: "smooth",
+                block: "start",
+            });
+    });
+}
+
+function changeRequestPanel(panelName) {
+    const targetId =
+        panelName === "submitted"
+            ? "submitted-requests"
+            : "received-requests";
+
+    setRequestPanel(panelName);
+
+    window.history.replaceState(
+        null,
+        "",
+        `/account#${targetId}`
+    );
+
+    window.requestAnimationFrame(() => {
+        document
+            .getElementById(targetId)
+            ?.scrollIntoView({
+                behavior: "smooth",
+                block: "start",
+            });
+    });
+}
+
+function changeReportFilter(filterName) {
+    setReportFilter(filterName);
+
+    const searchParameters =
+        new URLSearchParams(
+            window.location.search
+        );
+
+    if (filterName === "all") {
+        searchParameters.delete(
+            "reportFilter"
+        );
+    } else {
+        searchParameters.set(
+            "reportFilter",
+            filterName
+        );
+    }
+
+    const searchText =
+        searchParameters.toString();
+
+    window.history.replaceState(
+        null,
+        "",
+        `/account${
+            searchText ? `?${searchText}` : ""
+        }#my-reports`
+    );
+}
 
     function formatPhoneNumber(phoneValue) {
         if (!phoneValue) {
@@ -275,6 +549,34 @@ function Account() {
         };
 
         return statusLabels[status] || "Unknown";
+    }
+
+    function getClaimStatusStyles(status) {
+        const statusStyles = {
+            pending: {
+                badge: "bg-amber-100 text-amber-800",
+                border: "border-l-amber-400",
+            },
+            accepted: {
+                badge: "bg-emerald-100 text-emerald-800",
+                border: "border-l-emerald-500",
+            },
+            rejected: {
+                badge: "bg-red-100 text-red-800",
+                border: "border-l-red-500",
+            },
+            closed: {
+                badge: "bg-slate-200 text-slate-700",
+                border: "border-l-slate-400",
+            },
+        };
+
+        return (
+            statusStyles[status] || {
+                badge: "bg-slate-100 text-slate-700",
+                border: "border-l-slate-300",
+            }
+        );
     }
 
     function formatClaimDate(timestamp) {
@@ -651,6 +953,57 @@ function Account() {
         }
     }
 
+    async function toggleSavedItem(item) {
+        const currentUser = auth.currentUser;
+
+        if (!currentUser) {
+            return;
+        }
+
+        const isCurrentlySaved = savedItems.some(
+            (savedItem) => savedItem.id === item.id
+        );
+
+        try {
+            setWorkingSavedItemId(item.id);
+
+            if (isCurrentlySaved) {
+            await removeItemBookmark(
+                currentUser.uid,
+                item.id
+            );
+
+            setSavedItems((currentItems) =>
+                currentItems.filter(
+                (savedItem) =>
+                    savedItem.id !== item.id
+                )
+            );
+            } else {
+            await saveItemBookmark(
+                currentUser.uid,
+                item.id
+            );
+
+            setSavedItems((currentItems) => [
+                ...currentItems,
+                item,
+            ]);
+            }
+        } catch (error) {
+            console.error(
+            "Unable to update saved item:",
+            error
+            );
+
+            setMessage(
+            "Unable to update your saved items."
+            );
+        } finally {
+            setWorkingSavedItemId("");
+        }
+        }
+
     if (isLoading) {
         return (
             <main className="flex flex-col items-center justify-center py-20">
@@ -679,11 +1032,67 @@ function Account() {
         );
     }
 
+    const activeReports = items.filter(
+    (item) =>
+        item.status === "open" &&
+        item.moderationStatus === "visible"
+);
+
+const resolvedReports = items.filter(
+    (item) => item.status === "resolved"
+);
+
+const moderatedReports = items.filter(
+    (item) =>
+        item.moderationStatus ===
+            "pending_review" ||
+        item.moderationStatus === "hidden"
+);
+
+const activeReportCount =
+    activeReports.length;
+
+const resolvedReportCount =
+    resolvedReports.length;
+
+const pendingReceivedRequestCount =
+    receivedClaims.filter(
+        (claim) => claim.status === "pending"
+    ).length;
+
+const filteredReports =
+    reportFilter === "active"
+        ? activeReports
+        : reportFilter === "resolved"
+          ? resolvedReports
+          : reportFilter === "moderation"
+            ? moderatedReports
+            : items;
+
     return (
         <main className="pt-3 mx-auto max-w-5xl py-12">
-            <h1 className="text-3xl font-bold">
-                My Account
-            </h1>
+            <div className="flex flex-wrap items-end justify-between gap-4">
+                <div>
+                    <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#A6192E]">
+                        Account dashboard
+                    </p>
+
+                    <h1 className="mt-2 text-3xl font-bold text-[#1C1B19] sm:text-4xl">
+                        Welcome back, {profile.firstName}
+                    </h1>
+
+                    <p className="mt-2 text-sm text-[#6B6560]">
+                        Manage your reports, requests, saved items, and profile.
+                    </p>
+                </div>
+
+                <Link
+                    to="/post"
+                    className="rounded-xl bg-[#A6192E] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-red-800"
+                >
+                    Post an Item
+                </Link>
+            </div>
 
             {successMessage && (
                 <div className="mt-5 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
@@ -696,6 +1105,200 @@ function Account() {
                     {message}
                 </div>
             )}
+
+            <nav
+                aria-label="Account sections"
+                className="mt-8 grid grid-cols-2 gap-2 rounded-2xl border border-[#E5E0D8] bg-white p-2 shadow-sm md:grid-cols-4"
+            >
+                {[
+                    {
+                        id: "overview",
+                        label: "Overview",
+                        count: null,
+                    },
+                    {
+                        id: "reports",
+                        label: "My Reports",
+                        count: items.length,
+                    },
+                    {
+                        id: "requests",
+                        label: "Requests",
+                        count:
+                            receivedClaims.length +
+                            submittedClaims.length,
+                    },
+                    {
+                        id: "saved",
+                        label: "Saved Items",
+                        count: savedItems.length,
+                    },
+                ].map((tab) => {
+                    const isActive =
+                        activeTab === tab.id;
+
+                    return (
+                        <button
+                            key={tab.id}
+                            type="button"
+                            onClick={() =>
+                                changeAccountTab(tab.id)
+                            }
+                            aria-current={
+                                isActive ? "page" : undefined
+                            }
+                            className={`flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition ${
+                                isActive
+                                    ? "bg-[#A6192E] text-white shadow-sm"
+                                    : "text-[#6B6560] hover:bg-[#FAF7F2] hover:text-[#1C1B19]"
+                            }`}
+                        >
+                            <span>{tab.label}</span>
+
+                            {tab.count !== null && (
+                                <span
+                                    className={`rounded-full px-2 py-0.5 text-xs ${
+                                        isActive
+                                            ? "bg-white/20 text-white"
+                                            : "bg-[#F1ECE5] text-[#6B6560]"
+                                    }`}
+                                >
+                                    {tab.count}
+                                </span>
+                            )}
+                        </button>
+                    );
+                })}
+            </nav>
+
+            <section
+                id="overview"
+                className={
+                    activeTab === "overview"
+                        ? "block scroll-mt-24"
+                        : "hidden"
+                }
+            >
+
+                <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                    <button
+                        type="button"
+                        onClick={() =>
+                            changeAccountTab("reports")
+                        }
+                        className="rounded-2xl border border-[#E5E0D8] bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-[#A6192E]/40 hover:shadow-md"
+                    >
+                        <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#6B6560]">
+                            Total posted
+                        </p>
+
+                        <p className="mt-3 text-3xl font-bold text-[#1C1B19]">
+                            {items.length}
+                        </p>
+
+                        <p className="mt-1 text-sm text-[#6B6560]">
+                            View all your reports
+                        </p>
+                    </button>
+
+                    <button
+                        type="button"
+                        onClick={() =>
+                            changeAccountTab("reports")
+                        }
+                        className="rounded-2xl border border-[#E5E0D8] bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-green-300 hover:shadow-md"
+                    >
+                        <div className="flex items-center justify-between gap-3">
+                            <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#6B6560]">
+                                Active
+                            </p>
+
+                            <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+                        </div>
+
+                        <p className="mt-3 text-3xl font-bold text-[#1C1B19]">
+                            {activeReportCount}
+                        </p>
+
+                        <p className="mt-1 text-sm text-[#6B6560]">
+                            Publicly visible reports
+                        </p>
+                    </button>
+
+                    <button
+                        type="button"
+                        onClick={() =>
+                            changeAccountTab("requests")
+                        }
+                        className="rounded-2xl border border-[#E5E0D8] bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-amber-300 hover:shadow-md"
+                    >
+                        <div className="flex items-center justify-between gap-3">
+                            <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#6B6560]">
+                                Pending requests
+                            </p>
+
+                            {pendingReceivedRequestCount > 0 && (
+                                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-800">
+                                    New
+                                </span>
+                            )}
+                        </div>
+
+                        <p className="mt-3 text-3xl font-bold text-[#1C1B19]">
+                            {pendingReceivedRequestCount}
+                        </p>
+
+                        <p className="mt-1 text-sm text-[#6B6560]">
+                            Waiting for your response
+                        </p>
+                    </button>
+
+                    <button
+                        type="button"
+                        onClick={() =>
+                            changeAccountTab("saved")
+                        }
+                        className="rounded-2xl border border-[#E5E0D8] bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-[#A6192E]/40 hover:shadow-md"
+                    >
+                        <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#6B6560]">
+                            Saved items
+                        </p>
+
+                        <p className="mt-3 text-3xl font-bold text-[#1C1B19]">
+                            {savedItems.length}
+                        </p>
+
+                        <p className="mt-1 text-sm text-[#6B6560]">
+                            Reports you bookmarked
+                        </p>
+                    </button>
+                </div>
+
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#E5E0D8] bg-[#FAF7F2] px-5 py-4">
+                    <div>
+                        <p className="font-semibold text-[#1C1B19]">
+                            {resolvedReportCount}{" "}
+                            {resolvedReportCount === 1
+                                ? "report has"
+                                : "reports have"}{" "}
+                            been resolved
+                        </p>
+
+                        <p className="mt-1 text-sm text-[#6B6560]">
+                            Resolved reports remain available in My Reports for your records.
+                        </p>
+                    </div>
+
+                    <button
+                        type="button"
+                        onClick={() =>
+                            changeAccountTab("reports")
+                        }
+                        className="text-sm font-semibold text-[#A6192E] hover:underline"
+                    >
+                        View report history →
+                    </button>
+                </div>
 
             {isEditing ? (
                 <form onSubmit={handleSaveProfile} className="justify-center rounded-3xl bg-white border border-slate-200 p-6 shadow-sm sm:p-8 mt-6 max-w-xl">
@@ -778,19 +1381,21 @@ function Account() {
                     </div>
                 </form>
             ) : (
-                <section className="mt-6 max-w-xl">
-                    <p className="mb-6 text-lg text-slate-700">
-                        Welcome back,{" "}
-                        <span className="font-semibold text-slate-900">
-                            {profile.firstName}
-                        </span>
-                        !
-                    </p>
+                <section className="mt-8 max-w-2xl">
+                    <div className="rounded-2xl border border-[#E5E0D8] bg-white p-6 shadow-sm">
+                        <div>
+                            <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#A6192E]">
+                                Personal information
+                            </p>
 
-                    <div className="pl-7 py-6 mt-5 rounded-2xl border border-slate-200 bg-white shadow-sm">
-                        <h2 className="text-lg font-semibold text-slate-900">
-                            Profile Information
-                        </h2>
+                            <h2 className="mt-1 text-xl font-bold text-[#1C1B19]">
+                                Profile Information
+                            </h2>
+
+                            <p className="mt-1 text-sm text-[#6B6560]">
+                                Your contact preferences are shared only when an item request is accepted.
+                            </p>
+                        </div>
 
                         <dl className="mt-4 space-y-4">
                             <div>
@@ -846,43 +1451,140 @@ function Account() {
                     </button>
                 </section>
             )}
+            
+            </section>
+
+            <section
+                className={
+                    activeTab === "requests"
+                        ? "mt-8 block"
+                        : "hidden"
+                }
+            >
+                <div className="flex flex-wrap items-end justify-between gap-4">
+                    <div>
+                        <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#A6192E]">
+                            Request center
+                        </p>
+
+                        <h2 className="mt-1 text-2xl font-bold text-[#1C1B19]">
+                            Item Requests
+                        </h2>
+
+                        <p className="mt-2 text-sm text-[#6B6560]">
+                            Review requests you received and track requests you submitted.
+                        </p>
+                    </div>
+
+                    <Link
+                        to="/browse"
+                        className="text-sm font-semibold text-[#A6192E] hover:underline"
+                    >
+                        Browse open reports →
+                    </Link>
+                </div>
+
+                <div className="mt-5 inline-flex w-full rounded-2xl border border-[#E5E0D8] bg-white p-1.5 shadow-sm sm:w-auto">
+                    <button
+                        type="button"
+                        onClick={() =>
+                            changeRequestPanel("received")
+                        }
+                        className={`flex flex-1 items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold transition sm:flex-none ${
+                            requestPanel === "received"
+                                ? "bg-[#A6192E] text-white"
+                                : "text-[#6B6560] hover:bg-[#FAF7F2]"
+                        }`}
+                    >
+                        <span>Received</span>
+
+                        <span
+                            className={`rounded-full px-2 py-0.5 text-xs ${
+                                requestPanel === "received"
+                                    ? "bg-white/20 text-white"
+                                    : "bg-[#F1ECE5] text-[#6B6560]"
+                            }`}
+                        >
+                            {receivedClaims.length}
+                        </span>
+                    </button>
+
+                    <button
+                        type="button"
+                        onClick={() =>
+                            changeRequestPanel("submitted")
+                        }
+                        className={`flex flex-1 items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold transition sm:flex-none ${
+                            requestPanel === "submitted"
+                                ? "bg-[#A6192E] text-white"
+                                : "text-[#6B6560] hover:bg-[#FAF7F2]"
+                        }`}
+                    >
+                        <span>Submitted</span>
+
+                        <span
+                            className={`rounded-full px-2 py-0.5 text-xs ${
+                                requestPanel === "submitted"
+                                    ? "bg-white/20 text-white"
+                                    : "bg-[#F1ECE5] text-[#6B6560]"
+                            }`}
+                        >
+                            {submittedClaims.length}
+                        </span>
+                    </button>
+                </div>
+            </section>
 
             <section
                 id="received-requests"
-                className="mt-10 scroll-mt-24"
+                className={`scroll-mt-24 ${
+                    activeTab === "requests" &&
+                    requestPanel === "received"
+                        ? "mt-6 block"
+                        : "hidden"
+                }`}
             >
-                <h2 className="text-2xl font-semibold text-slate-900">
+                <h3 className="text-xl font-bold text-[#1C1B19]">
                     Requests Received
-                </h2>
+                </h3>
 
                 <p className="mt-2 text-sm text-slate-600">
                     Review responses submitted for your lost and found reports.
                 </p>
 
                 {receivedClaims.length === 0 ? (
-                    <p className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                        You haven't received any requests yet.
-                    </p>
+                    <div className="mt-5 rounded-2xl border border-dashed border-[#E5E0D8] bg-white px-6 py-10 text-center">
+                        <p className="font-semibold text-[#1C1B19]">
+                            No requests received
+                        </p>
+
+                        <p className="mt-1 text-sm text-[#6B6560]">
+                            Requests from other users will appear here when they respond to one of your reports.
+                        </p>
+                    </div>
                 ) : (
                     <div className="mt-5 space-y-4">
                         {receivedClaims.map((claim) => (
                             <article
                                 key={claim.id}
                                 id={`received-request-${claim.id}`}
-                                className="scroll-mt-24 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+                                className={`scroll-mt-24 rounded-2xl border border-l-4 border-[#E5E0D8] bg-white p-5 shadow-sm transition hover:shadow-md ${
+                                    getClaimStatusStyles(claim.status).border
+                                }`}
                             >
                                 <div className="flex flex-wrap items-start justify-between gap-3">
-                                    <div>
-                                        <p className="text-xs font-semibold uppercase tracking-wide text-red-600">
+                                    <div className="min-w-0">
+                                        <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#A6192E]">
                                             {getRequestLabel(claim)}
                                         </p>
 
-                                        <h3 className="mt-1 text-lg font-semibold text-slate-900">
+                                        <h3 className="mt-1 truncate text-lg font-bold text-[#1C1B19]">
                                             {claim.itemTitle}
                                         </h3>
-                                        <p className="mt-2 text-sm text-slate-600">
+
+                                        <p className="mt-2 text-sm text-[#6B6560]">
                                             Request from{" "}
-                                            <span className="font-semibold text-slate-900">
+                                            <span className="font-semibold text-[#1C1B19]">
                                                 {claim.claimantFirstName || "a CSUN user"}
                                             </span>
                                         </p>
@@ -897,13 +1599,7 @@ function Account() {
 
                                         <span
                                             className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                                                claim.status === "accepted"
-                                                    ? "bg-green-100 text-green-800"
-                                                    : claim.status === "rejected"
-                                                    ? "bg-red-100 text-red-800"
-                                                    : claim.status === "closed"
-                                                    ? "bg-slate-200 text-slate-700"
-                                                    : "bg-amber-100 text-amber-800"
+                                                getClaimStatusStyles(claim.status).badge
                                             }`}
                                         >
                                             {formatClaimStatus(claim.status)}
@@ -911,11 +1607,29 @@ function Account() {
                                     </div>
                                 </div>
 
-                                <p className="mt-4 text-sm text-slate-700">
-                                    {claim.message}
-                                </p>
+                                <div className="mt-4 rounded-xl bg-[#FAF7F2] px-4 py-3">
+                                    <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#6B6560]">
+                                        Claimant message
+                                    </p>
 
-                                <p className="mt-3 text-xs text-slate-500">
+                                    <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[#1C1B19]">
+                                        {claim.message}
+                                    </p>
+                                </div>
+
+                                <p className="mt-3 flex items-center gap-1.5 text-xs text-[#6B6560]">
+                                    <svg
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="1.8"
+                                        className="h-4 w-4"
+                                        aria-hidden="true"
+                                    >
+                                        <circle cx="12" cy="12" r="9" />
+                                        <path d="M12 7v5l3 2" />
+                                    </svg>
+
                                     Submitted {formatClaimDate(claim.createdAt)}
                                 </p>
 
@@ -930,11 +1644,11 @@ function Account() {
                                                 )
                                             }
                                             disabled={Boolean(respondingClaimId)}
-                                            className="rounded-xl bg-green-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60"
+                                            className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
                                         >
                                             {respondingClaimId === claim.id
                                                 ? "Saving..."
-                                                : "Review Acceptance"}
+                                                : "Accept Request"}
                                         </button>
 
                                         <button
@@ -946,11 +1660,11 @@ function Account() {
                                                 )
                                             }
                                             disabled={Boolean(respondingClaimId)}
-                                            className="rounded-xl border border-red-300 bg-white px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                                            className="rounded-xl border border-[#A6192E]/40 bg-white px-4 py-2.5 text-sm font-semibold text-[#A6192E] transition hover:bg-[#A6192E]/5 disabled:cursor-not-allowed disabled:opacity-60"
                                         >
                                             {respondingClaimId === claim.id
                                                 ? "Saving..."
-                                                : "Review Rejection"}
+                                                : "Reject Request"}
                                         </button>
                                     </div>
                                 )}
@@ -989,12 +1703,12 @@ function Account() {
                                     to={`/items/${claim.itemId}`}
                                     state={{
                                         from: "account",
-                                        returnTo:
-                                        `/account#received-request-${claim.id}`,
+                                        returnTo: `/account#received-request-${claim.id}`,
                                     }}
-                                    className="mt-4 inline-block text-sm font-semibold text-red-600 hover:text-red-700"
-                                    >
-                                    View Report →
+                                    className="mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-[#A6192E] transition hover:text-red-800 hover:underline"
+                                >
+                                    View related report
+                                    <span aria-hidden="true">→</span>
                                 </Link>
                             </article>
                         ))}
@@ -1002,38 +1716,65 @@ function Account() {
                 )}
             </section>
 
-            <section className="mt-10">
-                <h2 className="text-2xl font-semibold text-slate-900">
+            <section
+                id="submitted-requests"
+                className={`scroll-mt-24 ${
+                    activeTab === "requests" &&
+                    requestPanel === "submitted"
+                        ? "mt-6 block"
+                        : "hidden"
+                }`}
+            >
+                <h3 className="text-xl font-bold text-[#1C1B19]">
                     Requests You Submitted
-                </h2>
+                </h3>
 
                 <p className="mt-2 text-sm text-slate-600">
                     Track the status of requests you've sent to other users.
                 </p>
 
                 {submittedClaims.length === 0 ? (
-                    <p className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                        You haven't submitted any requests yet.
-                    </p>
+                    <div className="mt-5 rounded-2xl border border-dashed border-[#E5E0D8] bg-white px-6 py-10 text-center">
+                        <p className="font-semibold text-[#1C1B19]">
+                            No submitted requests
+                        </p>
+
+                        <p className="mt-1 text-sm text-[#6B6560]">
+                            When you contact the poster of a lost or found item, your request will appear here.
+                        </p>
+
+                        <Link
+                            to="/browse"
+                            className="mt-4 inline-block text-sm font-semibold text-[#A6192E] hover:underline"
+                        >
+                            Browse reports →
+                        </Link>
+                    </div>
                 ) : (
                     <div className="mt-5 space-y-4">
                         {submittedClaims.map((claim) => (
                             <article
                                 key={claim.id}
                                 id={`submitted-request-${claim.id}`}
-                                className="scroll-mt-24 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+                                className={`scroll-mt-24 rounded-2xl border border-l-4 border-[#E5E0D8] bg-white p-5 shadow-sm transition hover:shadow-md ${
+                                    getClaimStatusStyles(claim.status).border
+                                }`}
                             >
                                 <div className="flex flex-wrap items-start justify-between gap-3">
-                                    <div>
-                                        <p className="text-xs font-semibold uppercase tracking-wide text-red-600">
+                                    <div className="min-w-0">
+                                        <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#A6192E]">
                                             {getRequestLabel(claim)}
                                         </p>
 
-                                        <h3 className="mt-1 text-lg font-semibold text-slate-900">
+                                        <h3 className="mt-1 truncate text-lg font-bold text-[#1C1B19]">
                                             {claim.itemTitle}
                                         </h3>
-                                        <p className="mt-2 text-sm font-medium text-slate-600">
-                                            Request submitted by you
+
+                                        <p className="mt-2 text-sm text-[#6B6560]">
+                                            Request submitted by{" "}
+                                            <span className="font-semibold text-[#1C1B19]">
+                                                you
+                                            </span>
                                         </p>
                                     </div>
 
@@ -1047,13 +1788,7 @@ function Account() {
 
                                         <span
                                             className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                                                claim.status === "accepted"
-                                                    ? "bg-green-100 text-green-800"
-                                                    : claim.status === "rejected"
-                                                    ? "bg-red-100 text-red-800"
-                                                    : claim.status === "closed"
-                                                    ? "bg-slate-200 text-slate-700"
-                                                    : "bg-amber-100 text-amber-800"
+                                                getClaimStatusStyles(claim.status).badge
                                             }`}
                                         >
                                             {formatClaimStatus(claim.status)}
@@ -1061,11 +1796,29 @@ function Account() {
                                     </div>
                                 </div>
 
-                                <p className="mt-4 text-sm text-slate-700">
-                                    {claim.message}
-                                </p>
+                                <div className="mt-4 rounded-xl bg-[#FAF7F2] px-4 py-3">
+                                    <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#6B6560]">
+                                        Your message
+                                    </p>
 
-                                <p className="mt-3 text-xs text-slate-500">
+                                    <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[#1C1B19]">
+                                        {claim.message}
+                                    </p>
+                                </div>
+
+                                <p className="mt-3 flex items-center gap-1.5 text-xs text-[#6B6560]">
+                                    <svg
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="1.8"
+                                        className="h-4 w-4"
+                                        aria-hidden="true"
+                                    >
+                                        <circle cx="12" cy="12" r="9" />
+                                        <path d="M12 7v5l3 2" />
+                                    </svg>
+
                                     Submitted {formatClaimDate(claim.createdAt)}
                                 </p>
 
@@ -1119,12 +1872,12 @@ function Account() {
                                     to={`/items/${claim.itemId}`}
                                     state={{
                                         from: "account",
-                                        returnTo:
-                                        `/account#submitted-request-${claim.id}`,
+                                        returnTo: `/account#submitted-request-${claim.id}`,
                                     }}
-                                    className="mt-4 inline-block text-sm font-semibold text-red-600 hover:text-red-700"
-                                    >
-                                    View Report →
+                                    className="mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-[#A6192E] transition hover:text-red-800 hover:underline"
+                                >
+                                    View related report
+                                    <span aria-hidden="true">→</span>
                                 </Link>
                             </article>
                         ))}
@@ -1395,37 +2148,320 @@ function Account() {
                 </div>
             )}
 
-            <h2
-                id="my-reports"
-                className="mt-7 scroll-mt-24 text-2xl font-semibold"
-            >
-                My Reports
-            </h2>
+                        <section
+                            id="saved-items"
+                            className={`mt-8 scroll-mt-24 ${
+                                activeTab === "saved"
+                                    ? "block"
+                                    : "hidden"
+                            }`}
+                        >
+                <div className="flex flex-wrap items-end justify-between gap-4">
+                    <div>
+                        <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#A6192E]">
+                            Your bookmarks
+                        </p>
 
-            <p className="mt-2 text-sm text-slate-600">
-                Possible matches may appear as new reports are
-                posted. Open any active report below to review
-                its latest suggestions.
-            </p>
+                        <h2 className="mt-1 text-2xl font-bold text-[#1C1B19]">
+                            Saved Items
+                        </h2>
+
+                        <p className="mt-2 text-sm text-[#6B6560]">
+                            Revisit open reports that may be relevant to something you lost or found.
+                        </p>
+                    </div>
+
+                    <Link
+                        to="/browse"
+                        className="rounded-xl border border-[#A6192E] bg-white px-4 py-2.5 text-sm font-semibold text-[#A6192E] transition hover:bg-[#A6192E] hover:text-white"
+                    >
+                        Browse More Items
+                    </Link>
+                </div>
+
+                {savedItems.length === 0 ? (
+                    <div className="mt-6 rounded-2xl border border-dashed border-[#D8D1C8] bg-white px-6 py-12 text-center">
+                        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#A6192E]/10 text-[#A6192E]">
+                            <svg
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="1.8"
+                                className="h-6 w-6"
+                                aria-hidden="true"
+                            >
+                                <path d="M6 4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18l-6-4-6 4V4Z" />
+                            </svg>
+                        </div>
+
+                        <p className="mt-4 font-semibold text-[#1C1B19]">
+                            No saved items yet
+                        </p>
+
+                        <p className="mx-auto mt-2 max-w-md text-sm text-[#6B6560]">
+                            Select the bookmark icon on Browse or Item Details to keep an open report here.
+                        </p>
+
+                        <Link
+                            to="/browse"
+                            className="mt-5 inline-block rounded-xl bg-[#A6192E] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-red-800"
+                        >
+                            Explore Campus Reports
+                        </Link>
+                    </div>
+                ) : (
+                    <div className="mt-6 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+                        {savedItems.map((savedItem) => (
+                            <article
+                                key={savedItem.id}
+                                role="link"
+                                tabIndex={0}
+                                onClick={() =>
+                                    navigate(`/items/${savedItem.id}`, {
+                                        state: {
+                                            from: "account",
+                                            returnTo: "/account#saved-items",
+                                        },
+                                    })
+                                }
+                                onKeyDown={(event) => {
+                                    if (event.key === "Enter" || event.key === " ") {
+                                        event.preventDefault();
+
+                                        navigate(`/items/${savedItem.id}`, {
+                                            state: {
+                                                from: "account",
+                                                returnTo: "/account#saved-items",
+                                            },
+                                        });
+                                    }
+                                }}
+                                className="group flex h-full cursor-pointer flex-col rounded-2xl border border-[#E5E0D8] bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-[#A6192E]/40 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-[#A6192E] focus:ring-offset-2"
+                            >
+                                <div className="relative">
+                                    <SavedItemImage item={savedItem} />
+
+                                    <div
+                                        className="absolute right-3 top-3"
+                                        onClick={(event) => event.stopPropagation()}
+                                        onKeyDown={(event) => event.stopPropagation()}
+                                    >
+                                        <BookmarkButton
+                                            item={savedItem}
+                                            isSaved
+                                            isWorking={
+                                                workingSavedItemId ===
+                                                savedItem.id
+                                            }
+                                            onToggle={toggleSavedItem}
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="mt-4 flex flex-wrap gap-2">
+                                    <span
+                                        className={`rounded-full px-2.5 py-1 text-xs font-semibold capitalize ${
+                                            savedItem.type === "found"
+                                                ? "bg-emerald-50 text-emerald-700"
+                                                : "bg-red-50 text-red-700"
+                                        }`}
+                                    >
+                                        {savedItem.type}
+                                    </span>
+
+                                    <span className="rounded-full bg-[#FAF7F2] px-2.5 py-1 text-xs font-semibold capitalize text-[#6B6560]">
+                                        {savedItem.status}
+                                    </span>
+                                </div>
+
+                                <h3 className="mt-3 truncate text-lg font-bold text-[#1C1B19]">
+                                    {savedItem.title}
+                                </h3>
+
+                                <p className="mt-2 line-clamp-2 text-sm text-[#6B6560]">
+                                    {savedItem.description ||
+                                        "No description provided."}
+                                </p>
+
+                                <div className="mt-4 border-t border-[#E5E0D8] pt-4">
+                                    <p className="text-sm text-[#6B6560]">
+                                        <span className="font-medium text-[#1C1B19]">
+                                            {savedItem.category}
+                                        </span>
+                                        {" · "}
+                                        {savedItem.building}
+                                    </p>
+
+                                    <p className="mt-1 truncate text-sm text-[#6B6560]">
+                                        {savedItem.location}
+                                    </p>
+                                </div>
+                            </article>
+                        ))}
+                    </div>
+                )}
+            </section>
+
+            <section
+                className={
+                    activeTab === "reports"
+                        ? "block"
+                        : "hidden"
+                }
+            >
+
+            <div
+                id="my-reports"
+                className="mt-8 scroll-mt-24"
+            >
+                <div className="flex flex-wrap items-end justify-between gap-4">
+                    <div>
+                        <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#A6192E]">
+                            Your listings
+                        </p>
+
+                        <h2 className="mt-1 text-2xl font-bold text-[#1C1B19]">
+                            My Reports
+                        </h2>
+
+                        <p className="mt-2 text-sm text-[#6B6560]">
+                            Manage your listings and review possible matches for active reports.
+                        </p>
+                    </div>
+
+                    <Link
+                        to="/post"
+                        className="rounded-xl bg-[#A6192E] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-red-800"
+                    >
+                        New Report
+                    </Link>
+                </div>
+
+                <div className="mt-6 grid grid-cols-2 gap-2 rounded-2xl border border-[#E5E0D8] bg-white p-2 shadow-sm sm:grid-cols-4">
+                    {[
+                        {
+                            id: "all",
+                            label: "All",
+                            count: items.length,
+                        },
+                        {
+                            id: "active",
+                            label: "Active",
+                            count: activeReports.length,
+                        },
+                        {
+                            id: "resolved",
+                            label: "Resolved",
+                            count: resolvedReports.length,
+                        },
+                        {
+                            id: "moderation",
+                            label: "Moderation",
+                            count: moderatedReports.length,
+                        },
+                    ].map((filter) => {
+                        const isSelected =
+                            reportFilter === filter.id;
+
+                        return (
+                            <button
+                                key={filter.id}
+                                type="button"
+                                onClick={() =>
+                                    changeReportFilter(filter.id)
+                                }
+                                className={`flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold transition ${
+                                    isSelected
+                                        ? "bg-[#A6192E] text-white"
+                                        : "text-[#6B6560] hover:bg-[#FAF7F2]"
+                                }`}
+                            >
+                                <span>{filter.label}</span>
+
+                                <span
+                                    className={`rounded-full px-2 py-0.5 text-xs ${
+                                        isSelected
+                                            ? "bg-white/20 text-white"
+                                            : "bg-[#F1ECE5] text-[#6B6560]"
+                                    }`}
+                                >
+                                    {filter.count}
+                                </span>
+                            </button>
+                        );
+                    })}
+                </div>
+            </div>
 
             {items.length === 0 ? (
-                <p className="mt-3 text-slate-600">
-                    You haven't posted any lost or found items yet.
-                </p>
+                <div className="mt-6 rounded-2xl border border-dashed border-[#E5E0D8] bg-white px-6 py-10 text-center">
+                    <p className="font-semibold text-[#1C1B19]">
+                        You haven’t posted any reports
+                    </p>
+
+                    <p className="mt-1 text-sm text-[#6B6560]">
+                        Create a lost or found report to start receiving possible matches.
+                    </p>
+
+                    <Link
+                        to="/post"
+                        className="mt-4 inline-block text-sm font-semibold text-[#A6192E] hover:underline"
+                    >
+                        Post an item →
+                    </Link>
+                </div>
+            ) : filteredReports.length === 0 ? (
+                <div className="mt-6 rounded-2xl border border-dashed border-[#E5E0D8] bg-white px-6 py-10 text-center">
+                    <p className="font-semibold text-[#1C1B19]">
+                        No reports in this category
+                    </p>
+
+                    <p className="mt-1 text-sm text-[#6B6560]">
+                        Try selecting a different report filter.
+                    </p>
+
+                    <button
+                        type="button"
+                        onClick={() =>
+                            changeReportFilter("all")
+                        }
+                        className="mt-4 text-sm font-semibold text-[#A6192E] hover:underline"
+                    >
+                        Show all reports
+                    </button>
+                </div>
             ) : (
-                <div className="mt-5 space-y-4">
-                    {items.map((item) => (
+                <div className="mt-6 grid gap-5 lg:grid-cols-2">
+                    {filteredReports.map((item) => (
                         <article
                             key={item.id}
                             id={`report-${item.id}`}
-                            className="scroll-mt-24 rounded-xl border border-slate-200 p-4"
+                            className="scroll-mt-24 rounded-2xl border border-[#E5E0D8] bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-[#A6192E]/30 hover:shadow-md"
                         >
                             <ReportImage item={item} />
 
                             <div className="flex flex-wrap items-start justify-between gap-3">
-                                <h3 className="text-lg font-semibold">
-                                    {item.title}
-                                </h3>
+                                <div className="min-w-0">
+                                    <div className="flex flex-wrap gap-2">
+                                        <span
+                                            className={`rounded-full px-2.5 py-1 text-xs font-semibold capitalize ${
+                                                item.type === "found"
+                                                    ? "bg-emerald-50 text-emerald-700"
+                                                    : "bg-red-50 text-red-700"
+                                            }`}
+                                        >
+                                            {item.type}
+                                        </span>
+
+                                        <span className="rounded-full bg-[#FAF7F2] px-2.5 py-1 text-xs font-semibold capitalize text-[#6B6560]">
+                                            {item.status}
+                                        </span>
+                                    </div>
+
+                                    <h3 className="mt-3 truncate text-lg font-bold text-[#1C1B19]">
+                                        {item.title}
+                                    </h3>
+                                </div>
 
                                 {canViewPossibleMatches(item) && (
                                     unreadMatchItemIds.includes(item.id) ? (
@@ -1477,49 +2513,47 @@ function Account() {
                                     </div>
                                 )}
 
-                            <p className="mt-1 text-sm text-slate-600">
-                                {item.description}
+                            <p className="mt-4 line-clamp-3 text-sm leading-6 text-[#6B6560]">
+                                {item.description || "No description provided."}
                             </p>
 
-                            <div className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
-                                <p>
-                                    <strong>Type:</strong> {item.type}
+                            <div className="mt-4 border-t border-[#E5E0D8] pt-4">
+                                <p className="text-sm text-[#6B6560]">
+                                    <span className="font-medium text-[#1C1B19]">
+                                        {item.category}
+                                    </span>
+                                    {" · "}
+                                    {item.building}
                                 </p>
 
-                                <p>
-                                    <strong>Status:</strong> {item.status}
+                                <p className="mt-1 text-sm text-[#6B6560]">
+                                    {item.location}
                                 </p>
 
-                                <p>
-                                    <strong>Category:</strong> {item.category}
-                                </p>
-
-                                <p>
-                                    <strong>Building:</strong> {item.building}
-                                </p>
-
-                                <p>
-                                    <strong>Location:</strong> {item.location}
-                                </p>
-
-                                <p>
-                                    <strong>Date:</strong> {item.dateReported}
+                                <p className="mt-2 text-xs text-[#8A837C]">
+                                    Date lost or found:{" "}
+                                    {item.dateReported ||
+                                        "Date unavailable"}
                                 </p>
                             </div>
-                            <div className="mt-5 flex flex-wrap gap-3">
+                            <div className="mt-5 flex flex-wrap gap-2 border-t border-[#E5E0D8] pt-4">
                                 <Link
                                     to={`/items/${item.id}`}
                                     state={{
                                     from: "account",
                                     returnTo:
-                                        `/account#report-${item.id}`,
+                                        `/account${
+                                            reportFilter === "all"
+                                                ? ""
+                                                : `?reportFilter=${reportFilter}`
+                                        }#report-${item.id}`,
                                     scrollToMatches:
                                         canViewPossibleMatches(item),
                                     }}
                                     className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
                                         canViewPossibleMatches(item)
                                         ? "border border-[#A6192E] bg-[#A6192E] text-white hover:bg-red-800"
-                                        : "border border-slate-300 text-slate-700 hover:bg-slate-50"
+                                        : "border border-[#A6192E]/35 bg-white text-[#A6192E] hover:bg-[#A6192E]/5"
                                     }`}
                                     >
                                     {canViewPossibleMatches(item)
@@ -1536,7 +2570,7 @@ function Account() {
                                             requestItemResolution(item)
                                         }
                                         disabled={resolvingItemId === item.id}
-                                        className="rounded-xl bg-green-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-green-700 disabled:opacity-60"
+                                        className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
                                     >
                                         {resolvingItemId === item.id
                                             ? "Resolving..."
@@ -1549,7 +2583,15 @@ function Account() {
                                     item.moderationStatus !== "hidden" && (
                                     <Link
                                         to={`/items/${item.id}/edit`}
-                                        className="rounded-xl border border-blue-300 px-4 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-50"
+                                        state={{
+                                            from: "account",
+                                            returnTo: `/account${
+                                                reportFilter === "all"
+                                                    ? ""
+                                                    : `?reportFilter=${reportFilter}`
+                                            }#report-${item.id}`,
+                                        }}
+                                        className="rounded-xl border border-[#D8D1C8] bg-white px-4 py-2 text-sm font-semibold text-[#1C1B19] transition hover:border-[#A6192E]/40 hover:bg-[#FAF7F2]"
                                     >
                                         Edit Report
                                     </Link>
@@ -1559,7 +2601,7 @@ function Account() {
                                     type="button"
                                     onClick={() => requestItemDeletion(item)}
                                     disabled={deletingItemId === item.id}
-                                    className="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700 disabled:opacity-60"
+                                    className="rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
                                 >
                                     {deletingItemId === item.id
                                         ? "Deleting..."
@@ -1570,6 +2612,7 @@ function Account() {
                     ))}
                 </div>
             )}
+            </section>
         </main>
     );
 }

@@ -5,6 +5,7 @@ import { createUserWithEmailAndPassword, signInWithEmailAndPassword, validatePas
 import { doc, setDoc } from "firebase/firestore";
 
 function Auth() {
+    const inputClass = "w-full rounded-xl border border-[#D8D1C8] bg-white px-4 py-2.5 text-sm text-[#1C1B19] outline-none transition placeholder:text-[#8A837C] focus:border-[#A6192E] focus:ring-4 focus:ring-[#A6192E]/10";
     const navigate = useNavigate();
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
@@ -170,24 +171,27 @@ function Auth() {
     }
 
     return (
-        <div className="min-h-[80vh] flex items-center justify-center px-4">
+        <main className="flex min-h-[80vh] items-center justify-center px-4 py-10">
             <form
                 onSubmit={handleSubmit}
-                className="w-full max-w-sm bg-white border border-[#E5E0D8] rounded-lg shadow-sm p-8"
+                className="w-full max-w-md rounded-3xl border border-[#E5E0D8] bg-white p-6 shadow-md sm:p-8"
             >
-                <p className="text-[#A6192E] text-xs font-semibold tracking-widest uppercase mb-2 text-center">
-                    {isSignUpMode ? "Join the CSUN Community" : "Welcome Back!"}
+                <p className="text-center text-xs font-bold uppercase tracking-[0.18em] text-[#A6192E]">
+                    {isSignUpMode
+                        ? "Join the CSUN community"
+                        : "Welcome back"}
                 </p>
 
-                <h2 className="font-[Archivo_Black] text-2xl text-[#1C1B19] text-center mb-8">
-                    {isSignUpMode ? "Create Your FindIt Account" : "FindIt Login"}
-                </h2>
-                <div className="flex flex-col gap-4">
-                    
-                    <p className="mt-1 text-xs text-slate-500">
-                        Use your CSUN email (@my.csun.edu or @csun.edu)
-                        to log in or create an account.
-                    </p>
+                <h1 className="mt-2 text-center text-3xl font-bold text-[#1C1B19]">
+                    {isSignUpMode
+                        ? "Create your FindIt account"
+                        : "Log in to FindIt"}
+                </h1>
+
+                <p className="mx-auto mt-3 max-w-sm text-center text-sm leading-6 text-[#6B6560]">
+                    Use your CSUN email ending in @my.csun.edu or @csun.edu.
+                </p>
+                <div className="mt-6 flex flex-col gap-4">
                     
                     <input
                         type="email"
@@ -195,7 +199,7 @@ function Auth() {
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         autoComplete="email"
-                        className="border border-[#D8D2C6] rounded-sm px-4 py-2.5 text-[#1C1B19] placeholder-[#6B6560] focus:outline-none focus:border-[#A6192E] focus:ring-1 focus:ring-[#A6192E] transition-colors"
+                        className={inputClass}
                     />
 
                     <input
@@ -204,7 +208,7 @@ function Auth() {
                         value={password}
                         onChange={(event) => setPassword(event.target.value)}
                         autoComplete={isSignUpMode ? "new-password" : "current-password"}
-                        className="border border-[#D8D2C6] rounded-sm px-4 py-2.5 text-[#1C1B19] placeholder-[#6B6560] focus:outline-none focus:border-[#A6192E] focus:ring-1 focus:ring-[#A6192E] transition-colors"
+                        className={inputClass}
                     />
 
                     {isSignUpMode && (
@@ -216,24 +220,25 @@ function Auth() {
                                 setConfirmPassword(event.target.value)
                             }
                             autoComplete="new-password"
-                            className="border border-[#D8D2C6] rounded-sm px-4 py-2.5 text-[#1C1B19] placeholder-[#6B6560] focus:outline-none focus:border-[#A6192E] focus:ring-1 focus:ring-[#A6192E] transition-colors"
+                            className={inputClass}
                         />
                     )}
 
-                    <label className="flex items-center gap-2 text-sm text-[#6B6560]">
+                    <label className="flex cursor-pointer items-center gap-2 text-sm text-[#6B6560]">
                         <input
                             type="checkbox"
                             checked={showPassword}
                             onChange={(event) =>
                                 setShowPassword(event.target.checked)
                             }
+                            className="h-4 w-4 accent-[#A6192E]"
                         />
 
                         Show password{isSignUpMode ? "s" : ""}
                 </label>
 
                 {isSignUpMode && (
-                    <div className="rounded-sm border border-[#E5E0D8] bg-[#FAF9F7] px-4 py-3">
+                    <div className="rounded-2xl border border-[#E5E0D8] bg-[#FAF7F2] px-4 py-4">
                         <p className="mb-2 text-sm font-medium text-[#1C1B19]">
                             Password requirements
                         </p>
@@ -242,7 +247,7 @@ function Auth() {
                             <li
                                 className={
                                     passwordChecks.minimumLength
-                                        ? "text-green-700"
+                                        ? "text-emerald-700"
                                         : "text-[#6B6560]"
                                 }
                             >
@@ -253,7 +258,7 @@ function Auth() {
                             <li
                                 className={
                                     passwordChecks.lowercase
-                                        ? "text-green-700"
+                                        ? "text-emerald-700"
                                         : "text-[#6B6560]"
                                 }
                             >
@@ -264,7 +269,7 @@ function Auth() {
                             <li
                                 className={
                                     passwordChecks.uppercase
-                                        ? "text-green-700"
+                                        ? "text-emerald-700"
                                         : "text-[#6B6560]"
                                 }
                             >
@@ -275,7 +280,7 @@ function Auth() {
                             <li
                                 className={
                                     passwordChecks.number
-                                        ? "text-green-700"
+                                        ? "text-emerald-700"
                                         : "text-[#6B6560]"
                                 }
                             >
@@ -285,7 +290,7 @@ function Auth() {
                             <li
                                 className={
                                     passwordChecks.specialCharacter
-                                        ? "text-green-700"
+                                        ? "text-emerald-700"
                                         : "text-[#6B6560]"
                                 }
                             >
@@ -304,9 +309,9 @@ function Auth() {
                 {message && (
                     <div
                         role="alert"
-                        className={`mt-4 rounded-sm border px-4 py-3 text-sm ${
+                        className={`mt-5 rounded-xl border px-4 py-3 text-sm ${
                             messageType === "success"
-                                ? "border-green-200 bg-green-50 text-green-800"
+                                ? "border-emerald-200 bg-emerald-50 text-emerald-800"
                                 : "border-red-200 bg-red-50 text-red-800"
                             }`}
                         >
@@ -318,7 +323,7 @@ function Auth() {
                     <div className="mt-6">
                         <button
                             type="submit"
-                            className="w-full bg-[#A6192E] text-white font-medium py-2.5 rounded-sm hover:bg-[#8a1526] transition-colors"
+                            className="w-full rounded-xl bg-[#A6192E] px-5 py-3 text-sm font-semibold text-white transition hover:bg-red-800"
                         >
                             Create Account
                         </button>
@@ -335,7 +340,7 @@ function Auth() {
                     <div className="mt-6">
                         <button
                             type="submit"
-                            className="w-full bg-[#A6192E] text-white font-medium py-2.5 rounded-sm hover:bg-[#8a1526] transition-colors"
+                            className="w-full rounded-xl bg-[#A6192E] px-5 py-3 text-sm font-semibold text-white transition hover:bg-red-800"
                         >
                             Log In
                         </button>
@@ -359,7 +364,7 @@ function Auth() {
                     </Link>
                 )}
             </form>
-        </div>
+        </main>
     );
 }
 

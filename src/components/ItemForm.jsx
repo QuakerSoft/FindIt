@@ -7,6 +7,7 @@ import { useNavigate } from "react-router-dom";
 import { auth } from "../firebase/config";
 import { createItem, getUserProfile } from "../firebase/firestore";
 import { ITEM_CATEGORIES } from "../constants/categories";
+import { CAMPUS_BUILDINGS } from "../constants/buildings";
 import {
   uploadItemImage,
   validateItemImage,
@@ -100,6 +101,16 @@ function removeSelectedImage() {
       return;
     }
 
+    if (
+      formData.type === "found" &&
+      !imageFile
+    ) {
+      setMessage(
+        "Please add an image when reporting a found item."
+      );
+      return;
+    }
+
     try {
       setIsSubmitting(true);
       setMessage("");
@@ -131,13 +142,31 @@ function removeSelectedImage() {
         imageUrl = uploadedImage.imageUrl;
         imagePath = uploadedImage.imagePath;
 
-        // Best-effort AI tagging from the photo — feeds the matching
-        // algorithm but should never block the report if it fails.
-        aiTags = await getAiTagsForImage(imageFile);
+        // AI tags improve matching, but an analysis failure
+        // should never prevent the report from being posted.
+        try {
+          const analyzedTags =
+            await getAiTagsForImage(imageFile);
+
+          aiTags = Array.isArray(analyzedTags)
+            ? analyzedTags
+            : [];
+        } catch (analysisError) {
+          console.error(
+            "Unable to analyze item image:",
+            analysisError
+          );
+
+          aiTags = [];
+        }
       }
 
       const newItemId = await createItem({
         ...formData,
+        title: formData.title.trim(),
+        description: formData.description.trim(),
+        building: formData.building.trim(),
+        location: formData.location.trim(),
         imageUrl,
         imagePath,
         aiTags,
@@ -183,15 +212,15 @@ function removeSelectedImage() {
   }
 
   const inputClass =
-    "mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none transition placeholder:text-slate-400 focus:border-red-500 focus:ring-4 focus:ring-red-50";
+  "mt-2 w-full rounded-xl border border-[#D8D1C8] bg-white px-3 py-2.5 text-sm text-[#1C1B19] outline-none transition placeholder:text-[#8A837C] focus:border-[#A6192E] focus:ring-4 focus:ring-[#A6192E]/10";
 
   return (
     <form
       onSubmit={handleSubmit}
-      className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8"
+      className="rounded-3xl border border-[#E5E0D8] bg-white p-6 shadow-md sm:p-8"
     >
       <div className="grid gap-5 sm:grid-cols-2">
-        <label className="text-sm font-medium text-slate-700">
+        <label className="text-sm font-semibold text-[#494541]">
           Report type
           <select
             name="type"
@@ -204,7 +233,7 @@ function removeSelectedImage() {
           </select>
         </label>
 
-        <label className="text-sm font-medium text-slate-700">
+        <label className="text-sm font-semibold text-[#494541]">
           Item title
           <input
             name="title"
@@ -218,7 +247,7 @@ function removeSelectedImage() {
         </label>
       </div>
 
-      <label className="mt-5 block text-sm font-medium text-slate-700">
+      <label className="mt-5 block text-sm font-semibold text-[#494541]">
         Description
         <textarea
           name="description"
@@ -232,20 +261,31 @@ function removeSelectedImage() {
       </label>
 
       <div className="mt-5 grid gap-5 sm:grid-cols-2">
-        <label className="text-sm font-medium text-slate-700">
-          Building
-          <input
+        <label className="text-sm font-semibold text-[#494541]">
+          Campus building or area
+          <select
             name="building"
-            type="text"
-            placeholder="e.g., University Library"
             value={formData.building}
             onChange={handleChange}
             className={inputClass}
             required
-          />
+          >
+            <option value="">
+              Select a campus location
+            </option>
+
+            {CAMPUS_BUILDINGS.map((building) => (
+              <option
+                key={building}
+                value={building}
+              >
+                {building}
+              </option>
+            ))}
+          </select>
         </label>
 
-        <label className="text-sm font-medium text-slate-700">
+        <label className="text-sm font-semibold text-[#494541]">
           Category
           <select
             name="category"
@@ -265,7 +305,7 @@ function removeSelectedImage() {
       </div>
 
       <div className="mt-5 grid gap-5 sm:grid-cols-2">
-        <label className="text-sm font-medium text-slate-700">
+        <label className="text-sm font-semibold text-[#494541]">
           Specific location
           <input
             name="location"
@@ -278,7 +318,7 @@ function removeSelectedImage() {
           />
         </label>
 
-        <label className="text-sm font-medium text-slate-700">
+        <label className="text-sm font-semibold text-[#494541]">
           Date lost or found
           <input
             name="dateReported"
@@ -292,8 +332,13 @@ function removeSelectedImage() {
       </div>
 
       <div className="mt-5">
-        <p className="text-sm font-medium text-slate-700">
-          Item image (optional)
+        <p className="text-sm font-semibold text-[#494541]">
+          Item image
+          <span className="ml-1 font-normal text-[#6B6560]">
+            {formData.type === "found"
+              ? "(required)"
+              : "(optional)"}
+          </span>
         </p>
 
         <input
@@ -308,23 +353,33 @@ function removeSelectedImage() {
         {!imagePreviewUrl ? (
           <label
             htmlFor="item-image"
-            className="mt-2 flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center transition hover:border-red-400 hover:bg-red-50"
+            className="mt-2 flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-[#D8D1C8] bg-[#FAF7F2] px-6 py-10 text-center transition hover:border-[#A6192E]/50 hover:bg-[#A6192E]/5"
           >
-            <span className="text-3xl" aria-hidden="true">
-              📷
+            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-[#A6192E]/10 text-[#A6192E]">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.7"
+                className="h-6 w-6"
+                aria-hidden="true"
+              >
+                <path d="M4 7h3l1.5-2h7L17 7h3a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z" />
+                <circle cx="12" cy="13" r="4" />
+              </svg>
             </span>
 
-            <span className="mt-3 text-sm font-semibold text-slate-800">
+            <span className="mt-3 text-sm font-semibold text-[#1C1B19]">
               Click to choose an image
             </span>
 
-            <span className="mt-1 text-xs text-slate-500">
+            <span className="mt-1 text-xs text-[#6B6560]">
               JPG, PNG, or WebP — maximum 5 MB
             </span>
           </label>
         ) : (
           <div className="mt-4">
-            <p className="mb-2 text-sm font-medium text-slate-700">
+            <p className="mb-2 text-sm font-semibold text-[#494541]">
               Image preview
             </p>
 
@@ -338,7 +393,7 @@ function removeSelectedImage() {
               <img
                 src={imagePreviewUrl}
                 alt="Selected item preview"
-                className="h-72 w-full rounded-2xl border border-slate-200 bg-slate-50 object-contain p-2"
+                className="h-72 w-full rounded-2xl border border-[#E5E0D8] bg-[#FAF7F2] object-contain p-3"
                 onError={() => setImageError(true)}
                 onLoad={() => setImageError(false)}
               />
@@ -347,7 +402,7 @@ function removeSelectedImage() {
             <div className="mt-3 flex flex-wrap gap-3">
               <label
                 htmlFor="item-image"
-                className="cursor-pointer rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                className="cursor-pointer rounded-xl border border-[#D8D1C8] bg-white px-4 py-2 text-sm font-semibold text-[#1C1B19] transition hover:border-[#A6192E]/40 hover:bg-[#FAF7F2]"
               >
                 Choose a different image
               </label>
@@ -355,7 +410,7 @@ function removeSelectedImage() {
               <button
                 type="button"
                 onClick={removeSelectedImage}
-                className="rounded-xl border border-red-300 px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-50"
+                className="rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-50"
               >
                 Remove image
               </button>
@@ -364,15 +419,27 @@ function removeSelectedImage() {
         )}
       </div>
 
-      <div className="mt-7 flex items-center justify-end gap-4 border-t border-slate-100 pt-6">
-        {message && <p className="text-sm text-slate-600">{message}</p>}
-        <button
-          type="submit"
-          disabled={isSubmitting}
-          className="rounded-xl border border-transparent bg-[#A6192E] px-5 py-3 text-sm font-semibold text-white shadow-sm shadow-red-100 transition hover:border-[#A6192E] hover:bg-white hover:text-[#A6192E] disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {isSubmitting ? "Submitting..." : "Submit report"}
-        </button>
+      <div className="mt-7 border-t border-[#E5E0D8] pt-6">
+        {message && (
+          <div
+            role="alert"
+            className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
+          >
+            {message}
+          </div>
+        )}
+
+        <div className="flex justify-end">
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="rounded-xl bg-[#A6192E] px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-red-800 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500"
+          >
+            {isSubmitting
+              ? "Submitting report..."
+              : "Submit Report"}
+          </button>
+        </div>
       </div>
     </form>
   );

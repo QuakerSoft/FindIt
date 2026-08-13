@@ -198,7 +198,7 @@ function ReportPost({
         <button
           type="button"
           onClick={openDialog}
-          className="rounded-lg border border-black bg-white px-4 py-2 text-sm font-semibold text-black transition hover:bg-black hover:text-white"
+          className="rounded-xl border border-[#E5E0D8] bg-white px-4 py-2.5 text-sm font-semibold text-[#A6192E] shadow-sm transition hover:border-[#A6192E]/40 hover:bg-[#A6192E]/5"
         >
           Report Post
         </button>
