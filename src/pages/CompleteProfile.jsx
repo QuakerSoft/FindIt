@@ -88,16 +88,16 @@ function CompleteProfile() {
 
     return (
         <main className="mx-auto max-w-xl py-10">
-            <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-                <p className="text-sm font-semibold uppercase tracking-wide text-red-600">
+            <section className="rounded-3xl border border-[#E5E0D8] bg-white p-6 shadow-md sm:p-8">
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#A6192E]">
                     Profile setup
                 </p>
 
-                <h1 className="mt-2 text-3xl font-bold text-slate-900">
+                <h1 className="mt-2 text-3xl font-bold text-[#1C1B19]">
                     Complete your profile
                 </h1>
 
-                <p className="mt-2 text-sm text-slate-600">
+                <p className="mt-2 text-sm leading-6 text-[#6B6560]">
                     Add your name and choose how other CSUN users may contact you about
                     lost or found items. A phone number is only required when Phone is
                     included in your contact preference.
@@ -105,7 +105,7 @@ function CompleteProfile() {
 
                 <form onSubmit={handleSubmit} className="mt-6">
                     <div className="grid gap-5 sm:grid-cols-2">
-                        <label className="block text-sm font-medium text-slate-700">
+                        <label className="block text-sm font-semibold text-[#494541]">
                             First name
                             <input
                                 type="text"
@@ -115,12 +115,12 @@ function CompleteProfile() {
                                 }
                                 placeholder="Enter your first name"
                                 autoComplete="given-name"
-                                className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none transition focus:border-red-500 focus:ring-4 focus:ring-red-50"
+                                className="mt-2 w-full rounded-xl border border-[#D8D1C8] bg-white px-3 py-2.5 text-sm text-[#1C1B19] outline-none transition placeholder:text-[#8A837C] focus:border-[#A6192E] focus:ring-4 focus:ring-[#A6192E]/10"
                                 required
                             />
                         </label>
 
-                        <label className="block text-sm font-medium text-slate-700">
+                        <label className="block text-sm font-semibold text-[#494541]">
                             Last name
                             <input
                                 type="text"
@@ -130,13 +130,13 @@ function CompleteProfile() {
                                 }
                                 placeholder="Enter your last name"
                                 autoComplete="family-name"
-                                className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none transition focus:border-red-500 focus:ring-4 focus:ring-red-50"
+                                className="mt-2 w-full rounded-xl border border-[#D8D1C8] bg-white px-3 py-2.5 text-sm text-[#1C1B19] outline-none transition placeholder:text-[#8A837C] focus:border-[#A6192E] focus:ring-4 focus:ring-[#A6192E]/10"
                                 required
                             />
                         </label>
                     </div>
 
-                    <label className="mt-5 block text-sm font-medium text-slate-700">
+                    <label className="mt-5 block text-sm font-semibold text-[#494541]">
                         Phone number {contactPreference === "email" ? "(optional)" : "(required)"}
                         <input
                             type="tel"
@@ -152,15 +152,15 @@ function CompleteProfile() {
                                 contactPreference === "phone" ||
                                 contactPreference === "both"
                             }
-                            className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none transition focus:border-red-500 focus:ring-4 focus:ring-red-50"
+                            className="mt-2 w-full rounded-xl border border-[#D8D1C8] bg-white px-3 py-2.5 text-sm text-[#1C1B19] outline-none transition placeholder:text-[#8A837C] focus:border-[#A6192E] focus:ring-4 focus:ring-[#A6192E]/10"
                         />
                     </label>
 
-                    <span className="mt-2 block text-xs font-normal text-slate-500">
+                    <span className="mt-2 block text-xs font-normal leading-5 text-[#6B6560]">
                         Enter a 10-digit U.S. phone number. Example: (818) 555-1234.
                     </span>
 
-                    <label className="mt-5 block text-sm font-medium text-slate-700">
+                    <label className="mt-5 block text-sm font-semibold text-[#494541]">
                         How should people contact you?
                         <select
                             value={contactPreference}
@@ -174,20 +174,20 @@ function CompleteProfile() {
                             <option value="both">Email & Phone</option>
                         </select>
 
-                        <span className="mt-2 block text-xs font-normal text-slate-500">
+                        <span className="mt-2 block text-xs font-normal leading-5 text-[#6B6560]">
                             This is how other CSUN users may contact you about lost or found
                             items. Account verification and password recovery will still use
                             your CSUN email.
                         </span>
                     </label>
 
-                    <label className="mt-5 block text-sm font-medium text-slate-700">
+                    <label className="mt-5 block text-sm font-semibold text-[#494541]">
                         CSUN email
                         <input
                             type="email"
                             value={auth.currentUser?.email || ""}
                             disabled
-                            className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-100 px-3 py-2.5 text-sm text-slate-500"
+                            className="mt-2 w-full cursor-not-allowed rounded-xl border border-[#E5E0D8] bg-[#FAF7F2] px-3 py-2.5 text-sm text-[#6B6560]"
                         />
                     </label>
 
@@ -203,7 +203,7 @@ function CompleteProfile() {
                     <button
                         type="submit"
                         disabled={isSaving}
-                        className="mt-7 w-full rounded-xl bg-red-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-red-700 disabled:opacity-60"
+                        className="mt-7 w-full rounded-xl bg-[#A6192E] px-5 py-3 text-sm font-semibold text-white transition hover:bg-red-800 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500"
                     >
                         {isSaving ? "Saving profile..." : "Complete profile"}
                     </button>

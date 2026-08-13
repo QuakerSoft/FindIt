@@ -64,21 +64,24 @@ function ForgotPassword() {
     }
 
     return (
-        <main className="flex min-h-[80vh] items-center justify-center px-4">
-            <section className="w-full max-w-sm rounded-lg border border-[#E5E0D8] bg-white p-8 shadow-sm">
-                <p className="mb-2 text-center text-xs font-semibold uppercase tracking-widest text-[#A6192E]">
+        <main className="flex min-h-[80vh] items-center justify-center px-4 py-10">
+            <section className="w-full max-w-md rounded-3xl border border-[#E5E0D8] bg-white p-6 shadow-md sm:p-8">
+                <p className="text-center text-xs font-bold uppercase tracking-[0.18em] text-[#A6192E]">
                     Account recovery
                 </p>
 
-                <h1 className="mb-3 text-center font-[Archivo_Black] text-2xl text-[#1C1B19]">
+                <h1 className="mt-2 text-center text-3xl font-bold text-[#1C1B19]">
                     Reset your password
                 </h1>
 
-                <p className="mb-6 text-center text-sm text-[#6B6560]">
+                <p className="mx-auto mt-3 max-w-sm text-center text-sm leading-6 text-[#6B6560]">
                     Enter the CSUN email connected to your FindIt account.
                 </p>
 
-                <form onSubmit={handleReset}>
+                <form
+                    onSubmit={handleReset}
+                    className="mt-6"
+                >
                     <label className="block text-sm font-medium text-[#1C1B19]">
                         CSUN email
                         <input
@@ -89,16 +92,16 @@ function ForgotPassword() {
                             }
                             placeholder="Enter your CSUN email"
                             autoComplete="email"
-                            className="mt-2 w-full rounded-sm border border-[#D8D2C6] px-4 py-2.5 text-[#1C1B19] placeholder-[#6B6560] transition-colors focus:border-[#A6192E] focus:outline-none focus:ring-1 focus:ring-[#A6192E]"
+                            className="mt-2 w-full rounded-xl border border-[#D8D1C8] bg-white px-4 py-2.5 text-sm text-[#1C1B19] outline-none transition placeholder:text-[#8A837C] focus:border-[#A6192E] focus:ring-4 focus:ring-[#A6192E]/10"
                         />
                     </label>
 
                     {message && (
                         <div
                             role="alert"
-                            className={`mt-4 rounded-sm border px-4 py-3 text-sm ${
+                            className={`mt-4 rounded-xl border px-4 py-3 text-sm ${
                                 messageType === "success"
-                                    ? "border-green-200 bg-green-50 text-green-800"
+                                    ? "border-emerald-200 bg-emerald-50 text-emerald-800"
                                     : "border-red-200 bg-red-50 text-red-800"
                             }`}
                         >
@@ -109,7 +112,7 @@ function ForgotPassword() {
                     <button
                         type="submit"
                         disabled={isSending}
-                        className="mt-6 w-full rounded-sm bg-[#A6192E] py-2.5 font-medium text-white transition-colors hover:bg-[#8a1526] disabled:opacity-60"
+                        className="mt-6 w-full rounded-xl bg-[#A6192E] px-5 py-3 text-sm font-semibold text-white transition hover:bg-red-800 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500"
                     >
                         {isSending
                             ? "Requesting reset..."

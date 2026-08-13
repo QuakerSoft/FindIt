@@ -188,18 +188,19 @@ const filteredReviewedReports =
 
   return (
     <main className="mx-auto max-w-5xl py-10">
-      <p className="text-sm font-semibold uppercase tracking-wide text-[#A6192E]">
-        Moderation
-      </p>
+      <header className="border-b border-[#E5E0D8] pb-6">
+        <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#A6192E]">
+            Moderation
+        </p>
 
-      <h1 className="mt-1 text-3xl font-bold text-slate-900">
-        Flagged Posts
-      </h1>
+        <h1 className="mt-2 text-3xl font-bold tracking-tight text-[#1C1B19] sm:text-4xl">
+            Flagged Posts
+        </h1>
 
-      <p className="mt-2 text-slate-600">
-        Review posts reported by members of the CSUN
-        community.
-      </p>
+        <p className="mt-2 text-sm leading-6 text-[#6B6560] sm:text-base">
+            Review posts reported by members of the CSUN community.
+        </p>
+    </header>
 
       {errorMessage && (
         <div className="mt-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-red-800">
@@ -208,15 +209,28 @@ const filteredReviewedReports =
       )}
 
       {!errorMessage && pendingReports.length === 0 && (
-        <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
-          <h2 className="text-xl font-semibold text-slate-900">
-            No flagged posts
+        <div className="mt-6 rounded-2xl border border-dashed border-[#D8D1C8] bg-white p-8 text-center">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 text-emerald-700">
+              <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  className="h-6 w-6"
+                  aria-hidden="true"
+              >
+                  <path d="m5 12 4 4L19 6" />
+              </svg>
+          </div>
+
+          <h2 className="mt-4 text-xl font-bold text-[#1C1B19]">
+              No flagged posts
           </h2>
 
-          <p className="mt-2 text-slate-600">
-            The moderation queue is currently empty.
+          <p className="mt-2 text-sm text-[#6B6560]">
+              The moderation queue is currently empty.
           </p>
-        </div>
+      </div>
       )}
 
       {actionError && (
@@ -229,15 +243,15 @@ const filteredReviewedReports =
         {pendingReports.map((report) => (
           <article
             key={report.id}
-            className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
+            className="rounded-2xl border border-l-4 border-[#E5E0D8] border-l-amber-400 bg-white p-6 shadow-sm transition hover:shadow-md"
           >
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-red-600">
+                <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#A6192E]">
                   {report.reason}
                 </p>
 
-                <h2 className="mt-1 text-xl font-semibold text-slate-900">
+                <h2 className="mt-1 text-xl font-bold text-[#1C1B19]">
                   {report.itemTitle ||
                     "Untitled report"}
                 </h2>
@@ -249,12 +263,12 @@ const filteredReviewedReports =
             </div>
 
             {report.details && (
-              <div className="mt-4 rounded-xl bg-slate-50 px-4 py-3">
-                <p className="text-sm font-medium text-slate-900">
+              <div className="mt-4 rounded-xl bg-[#FAF7F2] px-4 py-3">
+                <p className="text-sm font-semibold text-[#1C1B19]">
                   Reporter details
                 </p>
 
-                <p className="mt-1 text-sm text-slate-700">
+                <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[#494541]">
                   {report.details}
                 </p>
               </div>
@@ -285,7 +299,7 @@ const filteredReviewedReports =
                 <Link
                     to={`/items/${report.itemId}`}
                     state={{ from: "admin" }}
-                    className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                    className="rounded-xl border border-[#D8D1C8] bg-white px-4 py-2 text-sm font-semibold text-[#1C1B19] transition hover:border-[#A6192E]/40 hover:bg-[#FAF7F2]"
                 >
                     View Reported Post
                 </Link>
@@ -296,7 +310,7 @@ const filteredReviewedReports =
                         requestAction(report, "dismiss")
                     }
                     disabled={Boolean(workingReportId)}
-                    className="rounded-xl border border-green-300 bg-white px-4 py-2 text-sm font-semibold text-green-700 transition hover:bg-green-50 disabled:opacity-60"
+                    className="rounded-xl border border-emerald-200 bg-white px-4 py-2 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                     Dismiss Report
                 </button>
@@ -307,7 +321,7 @@ const filteredReviewedReports =
                         requestAction(report, "hide")
                     }
                     disabled={Boolean(workingReportId)}
-                    className="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700 disabled:opacity-60"
+                    className="rounded-xl bg-[#A6192E] px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                     Hide Post
                 </button>
@@ -315,10 +329,10 @@ const filteredReviewedReports =
           </article>
         ))}
       </div>
-      <section className="mt-12 border-t border-slate-200 pt-8">
+      <section className="mt-12 border-t border-[#E5E0D8] pt-8">
         <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-            <h2 className="text-2xl font-semibold text-slate-900">
+            <h2 className="text-2xl font-bold text-[#1C1B19]">
             Reviewed Reports
             </h2>
 
@@ -334,7 +348,7 @@ const filteredReviewedReports =
             onChange={(event) =>
                 setReviewFilter(event.target.value)
             }
-            className="mt-2 block rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm outline-none transition focus:border-red-500 focus:ring-4 focus:ring-red-50"
+            className="mt-2 block rounded-xl border border-[#D8D1C8] bg-white px-4 py-2 text-sm text-[#1C1B19] outline-none transition focus:border-[#A6192E] focus:ring-4 focus:ring-[#A6192E]/10"
             >
             <option value="all">
                 All reviewed reports
@@ -366,7 +380,7 @@ const filteredReviewedReports =
             {filteredReviewedReports.map((report) => (
                 <article
                 key={report.id}
-                className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+                className="rounded-2xl border border-[#E5E0D8] bg-white p-5 shadow-sm transition hover:shadow-md"
                 >
                 <div className="flex flex-wrap items-start justify-between gap-4">
                     <div>
@@ -384,7 +398,7 @@ const filteredReviewedReports =
                         report.status === "actioned"
                         ? "bg-red-100 text-red-800"
                         : report.status === "restored"
-                            ? "bg-blue-100 text-blue-800"
+                            ? "bg-sky-100 text-sky-800"
                             : "bg-green-100 text-green-800"
                     }`}
                     >
@@ -416,7 +430,7 @@ const filteredReviewedReports =
                         requestAction(report, "restore")
                         }
                         disabled={Boolean(workingReportId)}
-                        className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-60"
+                        className="rounded-xl bg-sky-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                         Restore Post
                     </button>
@@ -523,9 +537,9 @@ const filteredReviewedReports =
                     disabled={Boolean(workingReportId)}
                     className={`rounded-xl px-5 py-2.5 text-sm font-semibold text-white transition disabled:opacity-60 ${
                         pendingAction.action === "dismiss"
-                            ? "bg-green-600 hover:bg-green-700"
+                            ? "bg-emerald-600 hover:bg-emerald-700"
                             : pendingAction.action === "restore"
-                            ? "bg-blue-600 hover:bg-blue-700"
+                            ? "bg-sky-600 hover:bg-sky-700"
                             : "bg-red-600 hover:bg-red-700"
                     }`}
                 >

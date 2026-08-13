@@ -8,6 +8,7 @@ function ReportActionsMenu({
   item,
   onDeleted,
   onResolved,
+  editState,
 }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState("");
@@ -131,6 +132,7 @@ function ReportActionsMenu({
         <button
           type="button"
           aria-label={`Manage report: ${item.title}`}
+          aria-haspopup="menu"
           aria-expanded={isMenuOpen}
           onClick={() =>
             setIsMenuOpen((currentValue) => !currentValue)
@@ -141,24 +143,30 @@ function ReportActionsMenu({
         </button>
 
         {isMenuOpen && (
-          <div className="absolute right-0 top-11 z-40 w-52 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-xl">
+          <div
+            role="menu"
+            className="absolute right-0 top-11 z-40 w-52 overflow-hidden rounded-xl border border-[#E5E0D8] bg-white py-1.5 shadow-xl"
+          >
             {item.status !== "resolved" && (
                 <Link
-                    to={`/items/${item.id}/edit`}
-                    onClick={() => setIsMenuOpen(false)}
-                    className="block px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+                  role="menuitem"
+                  to={`/items/${item.id}/edit`}
+                  state={editState}
+                  onClick={() => setIsMenuOpen(false)}
+                  className="block px-4 py-2.5 text-sm font-medium text-[#1C1B19] transition hover:bg-[#FAF7F2] hover:text-[#A6192E]"
                 >
-                    Edit Report
+                  Edit Report
                 </Link>
                 )}
 
             {item.status === "open" && (
               <button
                 type="button"
+                role="menuitem"
                 onClick={() =>
                   requestAction("resolve")
                 }
-                className="block w-full px-4 py-2.5 text-left text-sm font-medium text-green-700 transition hover:bg-green-50"
+                className="block w-full px-4 py-2.5 text-left text-sm font-medium text-emerald-700 transition hover:bg-emerald-50"
               >
                 Mark as Resolved
               </button>
@@ -166,10 +174,11 @@ function ReportActionsMenu({
 
             <button
               type="button"
+              role="menuitem"
               onClick={() =>
                 requestAction("delete")
               }
-              className="block w-full px-4 py-2.5 text-left text-sm font-medium text-red-700 transition hover:bg-red-50"
+              className="mt-1 block w-full border-t border-[#E5E0D8] px-4 py-2.5 text-left text-sm font-medium text-red-700 transition hover:bg-red-50"
             >
               Delete Report
             </button>
@@ -260,7 +269,7 @@ function ReportActionsMenu({
                 disabled={isWorking}
                 className={`rounded-xl px-5 py-2.5 text-sm font-semibold text-white transition disabled:opacity-60 ${
                   isResolving
-                    ? "bg-green-600 hover:bg-green-700"
+                    ? "bg-emerald-600 hover:bg-emerald-700"
                     : "bg-red-600 hover:bg-red-700"
                 }`}
               >

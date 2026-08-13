@@ -5,6 +5,7 @@ import {
 } from "react-router-dom";
 import { getAllItems, getClaimsByOwner, getBookmarkedItemIds, removeItemBookmark, saveItemBookmark, } from "../firebase/firestore";
 import { ITEM_CATEGORIES } from "../constants/categories";
+import { CAMPUS_BUILDINGS } from "../constants/buildings";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "../firebase/config";
 import ReportActionsMenu from "./ReportActionsMenu";
@@ -30,21 +31,35 @@ function getStatusBadgeClasses(status) {
 }
 
 function ItemCardImage({ item }) {
-  const [imageFailed, setImageFailed] =
-    useState(false);
+  const [imageStatus, setImageStatus] = useState(
+    item.imageUrl ? "loading" : "missing"
+  );
 
   const shouldShowImage =
-    item.imageUrl && !imageFailed;
+    item.imageUrl &&
+    imageStatus !== "error" &&
+    imageStatus !== "missing";
 
   return (
-    <div className="mb-4 flex h-44 items-center justify-center overflow-hidden rounded-xl bg-[#FAF7F2] p-3">
+    <div className="relative mb-4 flex h-44 items-center justify-center overflow-hidden rounded-xl bg-[#FAF7F2] p-3">
+      {imageStatus === "loading" && (
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="h-7 w-7 animate-spin rounded-full border-2 border-[#E5E0D8] border-t-[#A6192E]" />
+        </div>
+      )}
+
       {shouldShowImage ? (
         <img
           src={item.imageUrl}
           alt={item.title}
-          className="h-full w-full object-contain"
+          className={`h-full w-full object-contain transition-opacity ${
+            imageStatus === "loading"
+              ? "opacity-0"
+              : "opacity-100"
+          }`}
           referrerPolicy="no-referrer"
-          onError={() => setImageFailed(true)}
+          onLoad={() => setImageStatus("loaded")}
+          onError={() => setImageStatus("error")}
         />
       ) : (
         <div className="flex flex-col items-center text-center text-[#6B6560]/70">
@@ -68,7 +83,9 @@ function ItemCardImage({ item }) {
           </svg>
 
           <p className="mt-2 text-xs font-medium">
-            No image available
+            {imageStatus === "error"
+              ? "Image unavailable"
+              : "No image provided"}
           </p>
         </div>
       )}
@@ -86,10 +103,29 @@ function ItemList() {
   const searchTerm =
     searchParams.get("search") || "";
 
-  const [typeFilter, setTypeFilter] = useState("all");
-  const [sortOrder, setSortOrder] = useState("newest");
-  const [categoryFilter, setCategoryFilter] = useState("all");
-  const [buildingFilter, setBuildingFilter] = useState("all");
+  const requestedType =
+    searchParams.get("type") || "all";
+
+  const typeFilter = ["all", "lost", "found"].includes(
+    requestedType
+  )
+    ? requestedType
+    : "all";
+
+  const requestedSort =
+    searchParams.get("sort") || "newest";
+
+  const sortOrder = ["newest", "oldest"].includes(
+    requestedSort
+  )
+    ? requestedSort
+    : "newest";
+
+  const categoryFilter =
+    searchParams.get("category") || "all";
+
+  const buildingFilter =
+    searchParams.get("building") || "all";
 
   const [currentUser, setCurrentUser] = useState(null);
   const [pendingClaimCounts, setPendingClaimCounts] = useState({});
@@ -187,6 +223,33 @@ function ItemList() {
     loadPendingClaimCounts();
   }, [currentUser]);
 
+  useEffect(() => {
+    if (
+      isLoading ||
+      !window.location.hash.startsWith(
+        "#browse-item-"
+      )
+    ) {
+      return;
+    }
+
+    const targetId =
+      window.location.hash.replace("#", "");
+
+    const scrollTimer = window.setTimeout(() => {
+      document
+        .getElementById(targetId)
+        ?.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+        });
+    }, 150);
+
+    return () => {
+      window.clearTimeout(scrollTimer);
+    };
+  }, [isLoading, items]);
+
   if (isLoading) {
     return (
       <section className="flex flex-col items-center justify-center py-20">
@@ -207,10 +270,20 @@ function ItemList() {
   if (items.length === 0) {
     return (
       <section className="flex flex-col items-center rounded-3xl border border-dashed border-[#E5E0D8] bg-white px-6 py-16 text-center">
-        <div className="text-4xl" aria-hidden="true">
-          📦
+        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#A6192E]/10 text-[#A6192E]">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.7"
+            className="h-6 w-6"
+            aria-hidden="true"
+          >
+            <path d="M3 7.5 12 3l9 4.5v9L12 21l-9-4.5v-9Z" />
+            <path d="m3 7.5 9 4.5 9-4.5M12 12v9" />
+          </svg>
         </div>
-        <h2 className="mt-4 font-[Archivo_Black] text-xl text-[#1C1B19]">
+        <h2 className="mt-4 text-xl font-bold text-[#1C1B19]">
           No lost or found reports yet.
         </h2>
         <p className="mt-2 text-sm text-[#6B6560]">
@@ -218,7 +291,7 @@ function ItemList() {
         </p>
         <Link
           to="/post"
-          className="mt-5 rounded-sm border border-transparent bg-[#A6192E] px-6 py-2.5 text-sm font-medium text-white transition hover:border-[#A6192E] hover:bg-white hover:text-[#A6192E]"
+          className="mt-5 rounded-xl bg-[#A6192E] px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-red-800"
         >
           Post an Item
         </Link>
@@ -226,15 +299,13 @@ function ItemList() {
     );
   }
 
-  const availableBuildings = [
-    ...new Set(
-      items
-        .map((item) => item.building?.trim())
-        .filter(Boolean)
-    ),
-  ].sort((buildingA, buildingB) =>
-    buildingA.localeCompare(buildingB)
-  );
+  const availableBuildings =
+    CAMPUS_BUILDINGS.filter((building) =>
+      items.some(
+        (item) =>
+          item.building === building
+      )
+    );
 
   const normalizedSearch = searchTerm.trim().toLowerCase();
 
@@ -292,7 +363,8 @@ function ItemList() {
     searchTerm !== "" ||
     typeFilter !== "all" ||
     categoryFilter !== "all" ||
-    buildingFilter !== "all";
+    buildingFilter !== "all" ||
+    sortOrder !== "newest";
 
   function updateSearchTerm(newSearchTerm) {
     const nextSearchParams =
@@ -311,6 +383,28 @@ function ItemList() {
       replace: true,
     });
   }
+
+  function updateBrowseFilter(
+  parameterName,
+  newValue,
+  defaultValue = "all"
+) {
+  const nextSearchParams =
+    new URLSearchParams(searchParams);
+
+  if (newValue === defaultValue) {
+    nextSearchParams.delete(parameterName);
+  } else {
+    nextSearchParams.set(
+      parameterName,
+      newValue
+    );
+  }
+
+  setSearchParams(nextSearchParams, {
+    replace: true,
+  });
+}
 
   async function toggleBookmark(item) {
   if (!currentUser) {
@@ -364,18 +458,10 @@ function ItemList() {
 }
 
   function clearFilters() {
-    const nextSearchParams =
-      new URLSearchParams(searchParams);
-
-    nextSearchParams.delete("search");
-
-    setSearchParams(nextSearchParams, {
+    setSearchParams({}, {
       replace: true,
     });
-    setTypeFilter("all");
-    setCategoryFilter("all");
-    setBuildingFilter("all");
-    setSortOrder("newest");
+
     setIsMobileFiltersOpen(false);
   }
 
@@ -456,7 +542,10 @@ function ItemList() {
               id="type-filter"
               value={typeFilter}
               onChange={(event) =>
-                setTypeFilter(event.target.value)
+                updateBrowseFilter(
+                  "type",
+                  event.target.value
+                )
               }
             >
               <option value="all">All reports</option>
@@ -478,7 +567,10 @@ function ItemList() {
               id="category-filter"
               value={categoryFilter}
               onChange={(event) =>
-                setCategoryFilter(event.target.value)
+                updateBrowseFilter(
+                  "category",
+                  event.target.value
+                )
               }
             >
               <option value="all">All categories</option>
@@ -504,7 +596,10 @@ function ItemList() {
               id="building-filter"
               value={buildingFilter}
               onChange={(event) =>
-                setBuildingFilter(event.target.value)
+                updateBrowseFilter(
+                  "building",
+                  event.target.value
+                )
               }
             >
               <option value="all">All buildings</option>
@@ -521,6 +616,11 @@ function ItemList() {
             <p className="text-xs leading-5 text-[#6B6560]">
               Only open and publicly visible reports appear
               in Browse.
+            </p>
+
+            <p className="mt-2 text-xs leading-5 text-[#6B6560]">
+              Don’t see a campus location in the dropdown?
+              It currently has no active reports.
             </p>
           </div>
         </aside>
@@ -571,7 +671,11 @@ function ItemList() {
                   id="sort-order"
                   value={sortOrder}
                   onChange={(event) =>
-                    setSortOrder(event.target.value)
+                    updateBrowseFilter(
+                      "sort",
+                      event.target.value,
+                      "newest"
+                    )
                   }
                 >
                   <option value="newest">Most recent</option>
@@ -628,8 +732,18 @@ function ItemList() {
 
       {sortedItems.length === 0 ? (
         <div className="mt-4 flex flex-col items-center justify-center rounded-2xl border border-dashed border-[#E5E0D8] bg-white px-6 py-16 text-center">
-          <div className="text-3xl" aria-hidden="true">
-            🔍
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#A6192E]/10 text-[#A6192E]">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              className="h-6 w-6"
+              aria-hidden="true"
+            >
+              <circle cx="10.5" cy="10.5" r="6.5" />
+              <path d="m15.5 15.5 5 5" />
+            </svg>
           </div>
 
           <h3 className="mt-3 text-lg font-semibold text-[#1C1B19]">
@@ -657,11 +771,19 @@ function ItemList() {
             return (
               <article
                 key={item.id}
-                className="group relative flex cursor-pointer flex-col rounded-2xl border border-[#E5E0D8] bg-white p-4 shadow-sm transition duration-200 hover:z-40 hover:-translate-y-1 hover:border-[#A6192E]/30 hover:shadow-xl focus-within:z-40"
+                id={`browse-item-${item.id}`}
+                className="group relative scroll-mt-24 flex cursor-pointer flex-col rounded-2xl border border-[#E5E0D8] bg-white p-4 shadow-sm transition duration-200 hover:z-40 hover:-translate-y-1 hover:border-[#A6192E]/30 hover:shadow-xl focus-within:z-40"
               >
                 <Link
                   to={`/items/${item.id}`}
-                  state={{ from: "browse" }}
+                  state={{
+                    from: "browse",
+                    returnTo: `/browse${
+                      searchParams.toString()
+                        ? `?${searchParams.toString()}`
+                        : ""
+                    }#browse-item-${item.id}`,
+                  }}
                   aria-label={`View report: ${item.title}`}
                   className="absolute inset-0 z-10 rounded-2xl focus:outline-none focus:ring-4 focus:ring-[#A6192E]/10"
                 />
@@ -694,6 +816,14 @@ function ItemList() {
                   {isOwner ? (
                     <ReportActionsMenu
                       item={item}
+                      editState={{
+                      from: "browse",
+                      returnTo: `/browse${
+                        searchParams.toString()
+                          ? `?${searchParams.toString()}`
+                          : ""
+                      }#browse-item-${item.id}`,
+                    }}
                       onResolved={(resolvedItemId) => {
                         setItems((currentItems) =>
                           currentItems.map((currentItem) =>
@@ -769,14 +899,16 @@ function ItemList() {
                 </p>
 
                 <p className="mt-3 line-clamp-2 text-sm leading-5 text-[#6B6560]">
-                  {item.description}
+                  {item.description || "No description provided."}
                 </p>
 
                 <div className="mt-3 space-y-1 border-t border-[#E5E0D8] pt-3 text-xs text-[#6B6560]">
                   <p>
                     {item.category} &middot; {item.building}
                   </p>
-                  <p>{item.location}</p>
+                  <p className="truncate">
+                    {item.location || "Location unavailable"}
+                  </p>
                   <p className="pt-1 text-[#6B6560]/70">
                     Reported{" "}
                     {item.createdAt?.toDate

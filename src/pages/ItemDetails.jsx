@@ -441,7 +441,10 @@ function ItemDetails() {
     ]);
 
   const cameFromAccount =
-    location.state?.from === "account";
+  location.state?.from === "account";
+
+  const cameFromBrowse =
+    location.state?.from === "browse";
 
   const cameFromAdmin =
     location.state?.from === "admin";
@@ -455,9 +458,11 @@ function ItemDetails() {
     : cameFromAccount
       ? location.state?.returnTo ||
         "/account#my-reports"
-      : cameFromAdmin
-        ? "/admin"
-        : "/browse";
+      : cameFromBrowse
+        ? location.state?.returnTo || "/browse"
+        : cameFromAdmin
+          ? "/admin"
+          : "/browse";
 
   const backLabel = cameFromMatch
     ? "Back to Previous Report"
@@ -535,9 +540,10 @@ function ItemDetails() {
       <Link
         to={backPath}
         state={backState}
-        className="text-sm font-medium text-red-600 hover:text-red-700"
+        className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-[#A6192E] transition hover:bg-[#A6192E]/5 hover:text-red-800"
       >
-        ← {backLabel}
+        <span aria-hidden="true">←</span>
+        {backLabel}
       </Link>
 
       {location.state?.newlyPosted && (
@@ -557,7 +563,7 @@ function ItemDetails() {
         </div>
       )}
 
-            <article className="mt-6 rounded-3xl border border-[#E5E0D8] bg-white p-5 shadow-sm sm:p-8">
+      <article className="mt-5 rounded-3xl border border-[#E5E0D8] bg-white p-5 shadow-md sm:p-8">
         <header className="flex items-start justify-between gap-5 border-b border-[#E5E0D8] pb-6">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
@@ -609,6 +615,7 @@ function ItemDetails() {
             {isOwner && !isUnavailable ? (
               <ReportActionsMenu
                 item={item}
+                editState={location.state}
                 onResolved={() => {
                   setItem((currentItem) => ({
                     ...currentItem,
@@ -616,7 +623,9 @@ function ItemDetails() {
                   }));
                 }}
                 onDeleted={() => {
-                  navigate("/browse");
+                  navigate(backPath, {
+                    state: backState,
+                  });
                 }}
               />
             ) : !isOwner && !isUnavailable ? (
@@ -673,7 +682,7 @@ function ItemDetails() {
               </p>
 
               <p className="mt-3 whitespace-pre-wrap text-base leading-7 text-[#494541]">
-                {item.description}
+                {item.description || "No description was provided for this report."}
               </p>
             </section>
 
@@ -842,12 +851,12 @@ function ItemDetails() {
                     className="flex flex-col gap-3 rounded-xl border border-[#E5E0D8] bg-white px-4 py-4 shadow-sm transition hover:-translate-y-0.5 hover:border-[#A6192E]/40 hover:shadow-md sm:flex-row sm:items-center sm:justify-between"
                   >
                     <div>
-                      <p className="font-medium text-slate-900">
+                      <p className="font-semibold text-[#1C1B19]">
                         {match.item?.title ||
                           "Untitled report"}
                       </p>
 
-                      <p className="text-sm text-slate-600">
+                      <p className="mt-1 text-sm text-[#6B6560]">
                         {match.item?.category}
 
                         {match.item?.building
@@ -863,12 +872,12 @@ function ItemDetails() {
                 ))}
               </div>
             ) : (
-              <div className="mt-4 rounded-xl border border-dashed border-slate-300 bg-white px-5 py-6 text-center">
-                <p className="font-medium text-slate-900">
+              <div className="mt-4 rounded-xl border border-dashed border-[#D8D1C8] bg-white px-5 py-6 text-center">
+                <p className="font-semibold text-[#1C1B19]">
                   No strong matches yet
                 </p>
 
-                <p className="mt-1 text-sm text-slate-600">
+                <p className="mt-1 text-sm text-[#6B6560]">
                   We’ll continue checking as new{" "}
                   {item.type === "lost" ? "found" : "lost"}{" "}
                   reports are posted.
@@ -916,9 +925,20 @@ function ItemDetails() {
           !isOwner &&
           !isUnderReview &&
           !isHidden && (
-          <div className="mt-6 border-t border-slate-200 pt-5">
+          <section className="mt-7 rounded-2xl border border-[#E5E0D8] bg-[#FAF7F2] p-5 sm:p-6">
+            <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#A6192E]">
+              Contact the poster
+            </p>
+
+            <h2 className="mt-1 text-xl font-bold text-[#1C1B19]">
+              Could you help resolve this report?
+            </h2>
+
+            <p className="mt-2 text-sm leading-6 text-[#6B6560]">
+              Submit a request with useful identifying details. Your contact information will only be shared if the poster accepts it.
+            </p>
             {!currentUser ? (
-              <div>
+              <div className="mt-5">
                 <p className="text-sm text-slate-600">
                   Log in to respond to this report.
                 </p>
@@ -938,7 +958,7 @@ function ItemDetails() {
                   setClaimSuccess("");
                   setShowClaimForm(true);
                 }}
-                className="rounded-xl bg-[#A6192E] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-red-700"
+                className="mt-5 rounded-xl bg-[#A6192E] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-red-700"
               >
                 {item.type === "found"
                   ? "This Might Be Mine"
@@ -947,15 +967,15 @@ function ItemDetails() {
             ) : (
               <form
                 onSubmit={requestClaimSubmission}
-                className="rounded-2xl border border-slate-200 bg-slate-50 p-5"
+                className="mt-5 rounded-2xl border border-[#E5E0D8] bg-white p-5 shadow-sm"
               >
-                <h2 className="text-lg font-semibold text-slate-900">
+                <h3 className="text-lg font-bold text-[#1C1B19]">
                   {item.type === "found"
                     ? "Tell the poster why this may be yours"
                     : "Tell the poster what you found"}
-                </h2>
+                </h3>
 
-                <p className="mt-2 text-sm text-slate-600">
+                <p className="mt-2 text-sm leading-6 text-[#6B6560]">
                   {item.type === "found"
                     ? "Include identifying details that are not obvious from the report or image."
                     : "Explain where you found the item and include any useful identifying details."}
@@ -975,7 +995,7 @@ function ItemDetails() {
                         ? "For example: Mine has a small sticker underneath that is not visible in the photo."
                         : "For example: I found an item matching this description near the library entrance."
                     }
-                    className="mt-2 w-full resize-none rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-red-500 focus:ring-4 focus:ring-red-50"
+                    className="mt-2 w-full resize-none rounded-xl border border-[#D8D1C8] bg-white px-3 py-2.5 text-sm text-[#1C1B19] outline-none transition placeholder:text-[#8A837C] focus:border-[#A6192E] focus:ring-4 focus:ring-[#A6192E]/10"
                     required
                   />
                 </label>
@@ -1018,7 +1038,7 @@ function ItemDetails() {
                 </div>
               </form>
             )}
-          </div>
+          </section>
         )}
       </article>
       {showSubmitConfirmation && (
@@ -1061,7 +1081,7 @@ function ItemDetails() {
                 preferred contact information will be shared with you.
               </p>
 
-              <p className="font-medium text-slate-900">
+              <p className="font-semibold text-[#1C1B19]">
                 You may only submit one request for this report, even
                 if the poster rejects it.
               </p>

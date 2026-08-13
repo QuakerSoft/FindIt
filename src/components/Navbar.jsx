@@ -176,12 +176,24 @@ async function handleLogout() {
   }
 
   const links = [
-  { to: "/browse", label: "Browse" },
-  { to: "/post", label: "Post Item" },
-];
+    { to: "/", label: "Home" },
+    { to: "/browse", label: "Browse" },
+    { to: "/post", label: "Post Item" },
+  ];
+
+const accountDestination =
+    moderationNotificationCount > 0 ||
+    matchNotificationCount > 0
+        ? "/account#my-reports"
+        : claimNotificationCount > 0
+          ? "/account#received-requests"
+          : "/account#overview";
 
   return (
-    <nav className="sticky top-0 z-50 bg-[#A6192E] px-4 py-3 text-white shadow-md sm:px-6">
+    <nav
+      aria-label="Main navigation"
+      className="sticky top-0 z-50 bg-[#A6192E] px-4 py-3 text-white shadow-md sm:px-6"
+    >
       <div className="relative mx-auto flex max-w-7xl items-center justify-between gap-6">
         <Link to="/" className="flex items-center gap-1.5 text-xl font-bold">
           <span className="bg-white text-[#A6192E] text-xs font-extrabold px-1.5 py-0.5 rounded-sm">
@@ -304,19 +316,14 @@ async function handleLogout() {
                 </Link>
               )}
                 <Link
-                  to={
-                    moderationNotificationCount > 0 ||
-                    matchNotificationCount > 0
-                      ? "/account#my-reports"
-                      : "/account"
-                  }
+                  to={accountDestination}
                   aria-label="Open account"
-                    className={`ml-3 flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
-                        location.pathname === "/account"
-                            ? "bg-white text-[#A6192E]"
-                            : "text-white hover:bg-white/15"
-                    }`}
-                >
+                  className={`ml-3 flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
+                      location.pathname === "/account"
+                          ? "bg-white text-[#A6192E]"
+                          : "text-white hover:bg-white/15"
+                  }`}
+              >
                     <span
                         className={`flex h-7 w-7 items-center justify-center rounded-full ${
                             location.pathname === "/account"
@@ -382,15 +389,6 @@ async function handleLogout() {
           className="mx-auto mt-3 max-w-7xl border-t border-white/20 pt-3 lg:hidden"
         >
           <div className="flex flex-col gap-1">
-            <Link
-              to="/"
-              onClick={() =>
-                setIsMobileMenuOpen(false)
-              }
-              className="rounded-xl px-4 py-3 text-sm font-medium transition hover:bg-white/10"
-            >
-              Home
-            </Link>
 
             {links.map((link) => (
               <Link
@@ -428,21 +426,16 @@ async function handleLogout() {
                 )}
 
                 <Link
-                  to={
-                    moderationNotificationCount > 0 ||
-                    matchNotificationCount > 0
-                      ? "/account#my-reports"
-                      : "/account"
-                  }
+                  to={accountDestination}
                   onClick={() =>
-                    setIsMobileMenuOpen(false)
+                      setIsMobileMenuOpen(false)
                   }
                   className={`flex items-center justify-between rounded-xl px-4 py-3 text-sm font-medium transition ${
-                    location.pathname === "/account"
-                      ? "bg-white text-[#A6192E]"
-                      : "hover:bg-white/10"
+                      location.pathname === "/account"
+                          ? "bg-white text-[#A6192E]"
+                          : "hover:bg-white/10"
                   }`}
-                >
+              >
                   <span>Account</span>
 
                   {notificationCount > 0 && (
