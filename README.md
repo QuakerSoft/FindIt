@@ -125,8 +125,8 @@ The app is deployed on Vercel. Pushes to `main` trigger a production deployment;
 
 Built for **COMP 380/L**: 
 - Devin: DevOps(CI/CD), Frontend Developer
-- Van: Frontend Developer
+- Van: Designer
 - Isamar: Frontend Developer
 - Sumchhay: Frontend Developer 
-- Impress: Backend Developer/QA Testing
-- Nhan: SCRUM Master
+- Impress: Full Stack Developer
+- Nhan: SCRUM Master, Product Manager
